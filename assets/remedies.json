@@ -1,0 +1,1102 @@
+[
+  {
+    "id": "remedy-01",
+    "name": "Moringa",
+    "scientificName": "Moringa oleifera",
+    "localNames": {
+      "en": "Moringa",
+      "sn": "Mupanga",
+      "nd": "Moringa"
+    },
+    "category": "Traditional wellness",
+    "description": "Moringa is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3100,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-02",
+    "name": "Aloe",
+    "scientificName": "Aloe vera",
+    "localNames": {
+      "en": "Aloe",
+      "sn": "Gavakava",
+      "nd": "Ikhala"
+    },
+    "category": "Traditional wellness",
+    "description": "Aloe is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3200,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-03",
+    "name": "Lippia",
+    "scientificName": "Lippia javanica",
+    "localNames": {
+      "en": "Lippia",
+      "sn": "Zumbani",
+      "nd": "Umnwazi"
+    },
+    "category": "Traditional wellness",
+    "description": "Lippia is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3300,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-04",
+    "name": "Cancer bush",
+    "scientificName": "Sutherlandia frutescens",
+    "localNames": {
+      "en": "Cancer bush",
+      "sn": "Unwele",
+      "nd": "Insiswa"
+    },
+    "category": "Traditional wellness",
+    "description": "Cancer bush is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3400,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-05",
+    "name": "African wormwood",
+    "scientificName": "Artemisia afra",
+    "localNames": {
+      "en": "African wormwood",
+      "sn": "Muhuhu",
+      "nd": "Umhlonyane"
+    },
+    "category": "Traditional wellness",
+    "description": "African wormwood is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3500,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-06",
+    "name": "Spanish needle",
+    "scientificName": "Bidens pilosa",
+    "localNames": {
+      "en": "Spanish needle",
+      "sn": "Chidzambwa",
+      "nd": "Umsuzwane"
+    },
+    "category": "Traditional wellness",
+    "description": "Spanish needle is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3600,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-07",
+    "name": "Bulbine",
+    "scientificName": "Bulbine frutescens",
+    "localNames": {
+      "en": "Bulbine",
+      "sn": "Inhlaba",
+      "nd": "Inhlaba"
+    },
+    "category": "Traditional wellness",
+    "description": "Bulbine is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3700,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-08",
+    "name": "Long-tail cassia",
+    "scientificName": "Cassia abbreviata",
+    "localNames": {
+      "en": "Long-tail cassia",
+      "sn": "Munhengeni",
+      "nd": "UmHlangampunzi"
+    },
+    "category": "Traditional wellness",
+    "description": "Long-tail cassia is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3800,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-09",
+    "name": "Ginger",
+    "scientificName": "Zingiber officinale",
+    "localNames": {
+      "en": "Ginger",
+      "sn": "Chinamute",
+      "nd": "Ujikanelanga"
+    },
+    "category": "Traditional wellness",
+    "description": "Ginger is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 3900,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-10",
+    "name": "Voacanga",
+    "scientificName": "Tabernaemontana elegans",
+    "localNames": {
+      "en": "Voacanga",
+      "sn": "Mubvamaropa",
+      "nd": "Umkhanyakude"
+    },
+    "category": "Traditional wellness",
+    "description": "Voacanga is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4000,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-11",
+    "name": "Baobab",
+    "scientificName": "Adansonia digitata",
+    "localNames": {
+      "en": "Baobab",
+      "sn": "Mbuyu",
+      "nd": "Isigono"
+    },
+    "category": "Traditional wellness",
+    "description": "Baobab is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4100,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-12",
+    "name": "Croton",
+    "scientificName": "Croton megalobotrys",
+    "localNames": {
+      "en": "Croton",
+      "sn": "Mutunduru",
+      "nd": "Umthunduluka"
+    },
+    "category": "Traditional wellness",
+    "description": "Croton is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4200,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-13",
+    "name": "Wild teak",
+    "scientificName": "Pterocarpus angolensis",
+    "localNames": {
+      "en": "Wild teak",
+      "sn": "Mukwa",
+      "nd": "Umvangazi"
+    },
+    "category": "Traditional wellness",
+    "description": "Wild teak is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4300,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-14",
+    "name": "Devil?s claw",
+    "scientificName": "Harpagophytum procumbens",
+    "localNames": {
+      "en": "Devil?s claw",
+      "sn": "Garra",
+      "nd": "Ingudu"
+    },
+    "category": "Traditional wellness",
+    "description": "Devil?s claw is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4400,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-15",
+    "name": "African potato",
+    "scientificName": "Hypoxis hemerocallidea",
+    "localNames": {
+      "en": "African potato",
+      "sn": "Inkomfe",
+      "nd": "Ilabatheka"
+    },
+    "category": "Traditional wellness",
+    "description": "African potato is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4500,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-16",
+    "name": "Umckaloabo",
+    "scientificName": "Pelargonium sidoides",
+    "localNames": {
+      "en": "Umckaloabo",
+      "sn": "Kalwerbossie",
+      "nd": "Umckaloabo"
+    },
+    "category": "Traditional wellness",
+    "description": "Umckaloabo is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4600,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-17",
+    "name": "African basil",
+    "scientificName": "Ocimum gratissimum",
+    "localNames": {
+      "en": "African basil",
+      "sn": "Mufura",
+      "nd": "Umnukanuko"
+    },
+    "category": "Traditional wellness",
+    "description": "African basil is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4700,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-18",
+    "name": "Lemongrass",
+    "scientificName": "Cymbopogon citratus",
+    "localNames": {
+      "en": "Lemongrass",
+      "sn": "Mutsindindi",
+      "nd": "Umhlabelo"
+    },
+    "category": "Traditional wellness",
+    "description": "Lemongrass is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4800,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-19",
+    "name": "Spearmint",
+    "scientificName": "Mentha spicata",
+    "localNames": {
+      "en": "Spearmint",
+      "sn": "Mindi",
+      "nd": "Iminti"
+    },
+    "category": "Traditional wellness",
+    "description": "Spearmint is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 4900,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-20",
+    "name": "Garlic",
+    "scientificName": "Allium sativum",
+    "localNames": {
+      "en": "Garlic",
+      "sn": "Gariki",
+      "nd": "Ugalikhi"
+    },
+    "category": "Traditional wellness",
+    "description": "Garlic is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5000,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-21",
+    "name": "Turmeric",
+    "scientificName": "Curcuma longa",
+    "localNames": {
+      "en": "Turmeric",
+      "sn": "Mhangura",
+      "nd": "Umdoko"
+    },
+    "category": "Traditional wellness",
+    "description": "Turmeric is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5100,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-22",
+    "name": "Chamomile",
+    "scientificName": "Matricaria chamomilla",
+    "localNames": {
+      "en": "Chamomile",
+      "sn": "Chamomile",
+      "nd": "Chamomile"
+    },
+    "category": "Traditional wellness",
+    "description": "Chamomile is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5200,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-23",
+    "name": "Roselle",
+    "scientificName": "Hibiscus sabdariffa",
+    "localNames": {
+      "en": "Roselle",
+      "sn": "Munhwa",
+      "nd": "Umcwili"
+    },
+    "category": "Traditional wellness",
+    "description": "Roselle is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5300,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-24",
+    "name": "Guava",
+    "scientificName": "Psidium guajava",
+    "localNames": {
+      "en": "Guava",
+      "sn": "Muphopho",
+      "nd": "Ugwavha"
+    },
+    "category": "Traditional wellness",
+    "description": "Guava is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5400,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-25",
+    "name": "Papaya",
+    "scientificName": "Carica papaya",
+    "localNames": {
+      "en": "Papaya",
+      "sn": "Mupapaya",
+      "nd": "Upopo"
+    },
+    "category": "Traditional wellness",
+    "description": "Papaya is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5500,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-26",
+    "name": "Mango",
+    "scientificName": "Mangifera indica",
+    "localNames": {
+      "en": "Mango",
+      "sn": "Mubango",
+      "nd": "Umango"
+    },
+    "category": "Traditional wellness",
+    "description": "Mango is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5600,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-27",
+    "name": "Eucalyptus",
+    "scientificName": "Eucalyptus globulus",
+    "localNames": {
+      "en": "Eucalyptus",
+      "sn": "Mupuranga",
+      "nd": "Umsonti"
+    },
+    "category": "Traditional wellness",
+    "description": "Eucalyptus is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5700,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-28",
+    "name": "Tea tree",
+    "scientificName": "Melaleuca alternifolia",
+    "localNames": {
+      "en": "Tea tree",
+      "sn": "Muti wetii",
+      "nd": "Iti tree"
+    },
+    "category": "Traditional wellness",
+    "description": "Tea tree is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5800,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-29",
+    "name": "Calendula",
+    "scientificName": "Calendula officinalis",
+    "localNames": {
+      "en": "Calendula",
+      "sn": "Marigold",
+      "nd": "Marigold"
+    },
+    "category": "Traditional wellness",
+    "description": "Calendula is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 5900,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-30",
+    "name": "Neem",
+    "scientificName": "Azadirachta indica",
+    "localNames": {
+      "en": "Neem",
+      "sn": "Mwarubaini",
+      "nd": "Umnquma"
+    },
+    "category": "Traditional wellness",
+    "description": "Neem is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6000,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-31",
+    "name": "Silver cluster leaf",
+    "scientificName": "Terminalia sericea",
+    "localNames": {
+      "en": "Silver cluster leaf",
+      "sn": "Mususu",
+      "nd": "Umnyezane"
+    },
+    "category": "Traditional wellness",
+    "description": "Silver cluster leaf is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6100,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-32",
+    "name": "Leadwood",
+    "scientificName": "Combretum imberbe",
+    "localNames": {
+      "en": "Leadwood",
+      "sn": "Mubondo",
+      "nd": "Umnondo"
+    },
+    "category": "Traditional wellness",
+    "description": "Leadwood is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6200,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-33",
+    "name": "Pepper-bark tree",
+    "scientificName": "Warburgia salutaris",
+    "localNames": {
+      "en": "Pepper-bark tree",
+      "sn": "Mubondo",
+      "nd": "Isibhaha"
+    },
+    "category": "Traditional wellness",
+    "description": "Pepper-bark tree is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6300,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-34",
+    "name": "African cherry",
+    "scientificName": "Prunus africana",
+    "localNames": {
+      "en": "African cherry",
+      "sn": "Muombera",
+      "nd": "Umkakase"
+    },
+    "category": "Traditional wellness",
+    "description": "African cherry is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6400,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-35",
+    "name": "Rooibos",
+    "scientificName": "Rooibos",
+    "localNames": {
+      "en": "Rooibos",
+      "sn": "Bush tea",
+      "nd": "Iti yehlathi"
+    },
+    "category": "Traditional wellness",
+    "description": "Rooibos is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6500,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-36",
+    "name": "Bitter leaf",
+    "scientificName": "Vernonia amygdalina",
+    "localNames": {
+      "en": "Bitter leaf",
+      "sn": "Mubayamhondo",
+      "nd": "Umhlaba"
+    },
+    "category": "Traditional wellness",
+    "description": "Bitter leaf is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6600,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-37",
+    "name": "Moringa oil",
+    "scientificName": "Moringa seed oil",
+    "localNames": {
+      "en": "Moringa oil",
+      "sn": "Mafuta emupanga",
+      "nd": "Amafutha emoringa"
+    },
+    "category": "Traditional wellness",
+    "description": "Moringa oil is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6700,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-38",
+    "name": "Baobab fruit",
+    "scientificName": "Baobab fruit",
+    "localNames": {
+      "en": "Baobab fruit",
+      "sn": "Masekesa",
+      "nd": "Isithelo sombuyu"
+    },
+    "category": "Traditional wellness",
+    "description": "Baobab fruit is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6800,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-39",
+    "name": "Lemon",
+    "scientificName": "Citrus limon",
+    "localNames": {
+      "en": "Lemon",
+      "sn": "Ndimu",
+      "nd": "Ilamula"
+    },
+    "category": "Traditional wellness",
+    "description": "Lemon is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 6900,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-40",
+    "name": "Pomegranate",
+    "scientificName": "Punica granatum",
+    "localNames": {
+      "en": "Pomegranate",
+      "sn": "Damba",
+      "nd": "Ipomegranati"
+    },
+    "category": "Traditional wellness",
+    "description": "Pomegranate is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7000,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-41",
+    "name": "Tamarind",
+    "scientificName": "Tamarindus indica",
+    "localNames": {
+      "en": "Tamarind",
+      "sn": "Munhanzva",
+      "nd": "Umtamarindi"
+    },
+    "category": "Traditional wellness",
+    "description": "Tamarind is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7100,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-42",
+    "name": "Prickly pear",
+    "scientificName": "Opuntia ficus-indica",
+    "localNames": {
+      "en": "Prickly pear",
+      "sn": "Maboo",
+      "nd": "Ikhiwane lameva"
+    },
+    "category": "Traditional wellness",
+    "description": "Prickly pear is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7200,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-43",
+    "name": "Bugweed",
+    "scientificName": "Solanum mauritianum",
+    "localNames": {
+      "en": "Bugweed",
+      "sn": "Mubobo",
+      "nd": "Umtshongwe"
+    },
+    "category": "Traditional wellness",
+    "description": "Bugweed is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7300,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-44",
+    "name": "Pepper tree",
+    "scientificName": "Schinus molle",
+    "localNames": {
+      "en": "Pepper tree",
+      "sn": "Mupaini",
+      "nd": "Isihlahla sepelepele"
+    },
+    "category": "Traditional wellness",
+    "description": "Pepper tree is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7400,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-45",
+    "name": "Toothache plant",
+    "scientificName": "Acmella oleracea",
+    "localNames": {
+      "en": "Toothache plant",
+      "sn": "Muti wemazino",
+      "nd": "Umtshanelo"
+    },
+    "category": "Traditional wellness",
+    "description": "Toothache plant is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7500,
+    "tags": [
+      "headache"
+    ]
+  },
+  {
+    "id": "remedy-46",
+    "name": "River pumpkin",
+    "scientificName": "Gunnera perpensa",
+    "localNames": {
+      "en": "River pumpkin",
+      "sn": "Mubvamaropa",
+      "nd": "Iphuzi"
+    },
+    "category": "Traditional wellness",
+    "description": "River pumpkin is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7600,
+    "tags": [
+      "cough"
+    ]
+  },
+  {
+    "id": "remedy-47",
+    "name": "Sausage tree",
+    "scientificName": "Kigelia africana",
+    "localNames": {
+      "en": "Sausage tree",
+      "sn": "Mudhudhudhu",
+      "nd": "Umvunguta"
+    },
+    "category": "Traditional wellness",
+    "description": "Sausage tree is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7700,
+    "tags": [
+      "nausea"
+    ]
+  },
+  {
+    "id": "remedy-48",
+    "name": "Elephant foot",
+    "scientificName": "Dioscorea elephantipes",
+    "localNames": {
+      "en": "Elephant foot",
+      "sn": "Chizambiringa",
+      "nd": "Ingwe"
+    },
+    "category": "Traditional wellness",
+    "description": "Elephant foot is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7800,
+    "tags": [
+      "rash"
+    ]
+  },
+  {
+    "id": "remedy-49",
+    "name": "Wild banana",
+    "scientificName": "Ensete ventricosum",
+    "localNames": {
+      "en": "Wild banana",
+      "sn": "Mabhanana emusango",
+      "nd": "Ubhanana wasendle"
+    },
+    "category": "Traditional wellness",
+    "description": "Wild banana is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 7900,
+    "tags": [
+      "digestive"
+    ]
+  },
+  {
+    "id": "remedy-50",
+    "name": "Wild plum",
+    "scientificName": "Ximenia caffra",
+    "localNames": {
+      "en": "Wild plum",
+      "sn": "Munhengeni mutsvuku",
+      "nd": "Umthunduluka wasendle"
+    },
+    "category": "Traditional wellness",
+    "description": "Wild plum is included as a culturally important traditional wellness plant.",
+    "usage": "Use only with guidance from a qualified healthcare professional.",
+    "preparation": "Prepare as directed by a qualified herbalist; use clean water and equipment.",
+    "dosage": "No universal dose: consult a clinician or qualified herbalist.",
+    "warning": "Evidence and safety vary. Avoid self-treatment in pregnancy, children, chronic illness, or with medicines.",
+    "evidenceSource": "WHO traditional medicine resources; Zimbabwe Traditional Medicine Policy",
+    "studyUrl": "https://www.who.int/teams/global-traditional-medicine",
+    "priceCents": 8000,
+    "tags": [
+      "headache"
+    ]
+  }
+]
