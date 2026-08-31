@@ -42,9 +42,9 @@ abstract interface class PaymentGateway {
 class ProductionPaymentGateway implements PaymentGateway {
   final PaymentService _paymentService;
 
-  const ProductionPaymentGateway({
+  ProductionPaymentGateway({
     PaymentService? paymentService,
-  }) : _paymentService = paymentService ?? const PaymentService(isTestMode: true);
+  }) : _paymentService = paymentService ?? PaymentService(isTestMode: true);
 
   @override
   Future<PaymentResult> subscribePremium({

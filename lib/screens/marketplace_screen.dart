@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/remedy.dart';
 import '../services/app_store.dart';
+import 'dart:async';
+
 import '../services/integration_stubs.dart';
 import '../widgets/remedy_card.dart';
 
@@ -41,8 +43,10 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Your basket',
-                  style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'Your basket',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 12),
               if (widget.store.cart.isEmpty)
                 const Text('Your basket is empty.')
@@ -63,7 +67,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                 ),
                 const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: () => _processCheckout(),
+                  onPressed: () => unawaited(_processCheckout()),
                   child: const Text('Place Order'),
                 ),
               ],
@@ -81,7 +85,7 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
     // Show loading dialog
     if (!mounted) return;
-    showDialog<void>(
+    unawaited(showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
@@ -89,14 +93,15 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
           height: 80,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Processing payment...'),
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text('Processing payment...'),
             ],
           ),
         ),
       ),
+    ),
     );
 
     try {

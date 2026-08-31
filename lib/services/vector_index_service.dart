@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/remedy.dart';
@@ -49,7 +51,7 @@ class VectorIndexService {
 
   final EmbeddingServiceBase _embeddingService;
   late SharedPreferences _prefs;
-  Map<String, IndexedRemedy> _cache = {};
+  final Map<String, IndexedRemedy> _cache = {};
   bool _isInitialized = false;
 
   VectorIndexService(this._embeddingService);
@@ -154,7 +156,7 @@ class VectorIndexService {
 
     normA = normA > 0 ? normA : 1.0;
     normB = normB > 0 ? normB : 1.0;
-    return dotProduct / (normA.sqrt * normB.sqrt);
+    return dotProduct / (sqrt(normA) * sqrt(normB));
   }
 
   /// Check if cache is still valid for the current catalog

@@ -2,8 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutterwave_flutter/flutterwave.dart';
-import 'package:flutterwave_flutter/models/requests/customer.dart';
+import 'package:flutterwave_standard/flutterwave.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
@@ -18,7 +17,6 @@ class PaymentService {
 
   String get _publicKey => dotenv.env['FLUTTERWAVE_PUBLIC_KEY'] ?? '';
   String get _secretKey => dotenv.env['FLUTTERWAVE_SECRET_KEY'] ?? '';
-  String get _encryptionKey => dotenv.env['FLUTTERWAVE_ENCRYPTION_KEY'] ?? '';
 
   /// Process premium subscription payment ($1.50)
   Future<PaymentResult> processPremiumSubscription({
@@ -29,53 +27,49 @@ class PaymentService {
     try {
       final transactionRef = _generateTransactionRef();
 
-      final result = await Flutterwave.forUIPayment(
-        context: context,
+      final flutterwave = Flutterwave(
         publicKey: _publicKey,
-        encryptionKey: _encryptionKey,
+        currency: 'USD',
+        redirectUrl: '',
         txRef: transactionRef,
-        amount: "1.50",
-        currency: "USD",
+        amount: '1.50',
         customer: Customer(
-          name: userName.isNotEmpty ? userName : "User",
-          phoneNumber: "+263712000000",
-          email: userEmail.isNotEmpty ? userEmail : "user@usizo.app",
+          name: userName.isNotEmpty ? userName : 'User',
+          phoneNumber: '+263712000000',
+          email: userEmail.isNotEmpty ? userEmail : 'user@usizo.app',
         ),
-        paymentOptions: "ussd, card, barter, bank transfer, wallet",
+        paymentOptions: 'ussd, card, bank transfer',
         customization: Customization(
-          title: "UsizoAI Plus",
-          logo: "https://platform.slack-edge.com/img/default_application_icon.png",
-          description: "Unlimited health checks for premium users",
+          title: 'UsizoAI Plus',
+          description: 'Unlimited health checks for premium users',
         ),
         isTestMode: isTestMode,
-        onComplete: (response) async {
-          if (response?.status == "successful") {
-            final verified = await _verifyPayment(
-              transactionRef: transactionRef,
-              amount: 1.50,
-              userEmail: userEmail,
-            );
-            return verified;
-          }
-          return false;
-        },
       );
 
-      if (result == true) {
-        return PaymentResult.success(
+      final response = await flutterwave.charge(context);
+
+      if (response.success == true) {
+        final verified = await _verifyPayment(
           transactionRef: transactionRef,
           amount: 1.50,
+          userEmail: userEmail,
         );
-      } else {
-        return PaymentResult.failed(
-          transactionRef: transactionRef,
-          reason: "Payment cancelled by user",
-        );
+        if (verified) {
+          return PaymentResult.success(
+            transactionRef: transactionRef,
+            amount: 1.50,
+          );
+        }
       }
+
+      return PaymentResult.failed(
+        transactionRef: transactionRef,
+        reason: 'Payment cancelled or failed',
+      );
     } catch (e) {
       return PaymentResult.failed(
-        transactionRef: "",
-        reason: "Payment error: $e",
+        transactionRef: '',
+        reason: 'Payment error: $e',
       );
     }
   }
@@ -90,8 +84,8 @@ class PaymentService {
     try {
       if (items.isEmpty) {
         return PaymentResult.failed(
-          transactionRef: "",
-          reason: "Cart is empty",
+          transactionRef: '',
+          reason: 'Cart is empty',
         );
       }
 
@@ -99,53 +93,50 @@ class PaymentService {
       final totalUsd = (totalCents / 100).toStringAsFixed(2);
       final transactionRef = _generateTransactionRef();
 
-      final result = await Flutterwave.forUIPayment(
-        context: context,
+      final flutterwave = Flutterwave(
         publicKey: _publicKey,
-        encryptionKey: _encryptionKey,
+        currency: 'USD',
+        redirectUrl: '',
         txRef: transactionRef,
         amount: totalUsd,
-        currency: "USD",
         customer: Customer(
-          name: userName.isNotEmpty ? userName : "Customer",
-          phoneNumber: "+263712000000",
-          email: userEmail.isNotEmpty ? userEmail : "customer@usizo.app",
+          name: userName.isNotEmpty ? userName : 'Customer',
+          phoneNumber: '+263712000000',
+          email: userEmail.isNotEmpty ? userEmail : 'customer@usizo.app',
         ),
-        paymentOptions: "ussd, card, barter, bank transfer, wallet",
+        paymentOptions: 'ussd, card, bank transfer',
         customization: Customization(
-          title: "UsizoAI Wellness Store",
-          logo: "https://platform.slack-edge.com/img/default_application_icon.png",
-          description: "${items.length} item${items.length > 1 ? 's' : ''} - USD $totalUsd",
+          title: 'UsizoAI Wellness Store',
+          description:
+              '${items.length} item${items.length > 1 ? 's' : ''} - USD $totalUsd',
         ),
         isTestMode: isTestMode,
-        onComplete: (response) async {
-          if (response?.status == "successful") {
-            final verified = await _verifyPayment(
-              transactionRef: transactionRef,
-              amount: double.parse(totalUsd),
-              userEmail: userEmail,
-            );
-            return verified;
-          }
-          return false;
-        },
       );
 
-      if (result == true) {
-        return PaymentResult.success(
+      final response = await flutterwave.charge(context);
+
+      if (response.success == true) {
+        final verified = await _verifyPayment(
           transactionRef: transactionRef,
           amount: double.parse(totalUsd),
+          userEmail: userEmail,
         );
-      } else {
-        return PaymentResult.failed(
-          transactionRef: transactionRef,
-          reason: "Payment cancelled by user",
-        );
+        if (verified) {
+          return PaymentResult.success(
+            transactionRef: transactionRef,
+            amount: double.parse(totalUsd),
+          );
+        }
       }
+
+      return PaymentResult.failed(
+        transactionRef: transactionRef,
+        reason: 'Payment cancelled or failed',
+      );
     } catch (e) {
       return PaymentResult.failed(
-        transactionRef: "",
-        reason: "Order payment error: $e",
+        transactionRef: '',
+        reason: 'Order payment error: $e',
       );
     }
   }
@@ -162,20 +153,24 @@ class PaymentService {
         'https://api.flutterwave.com/v3/transactions/verify_by_reference?reference=$transactionRef',
       );
 
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $_secretKey',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            url,
+            headers: {
+              'Authorization': 'Bearer $_secretKey',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final nestedData = data['data'] as Map<String, dynamic>?;
 
         if (data['status'] == 'success' &&
-            data['data']['status'] == 'successful' &&
-            double.parse(data['data']['amount'].toString()) >= amount) {
+            nestedData != null &&
+            nestedData['status'] == 'successful' &&
+            double.parse(nestedData['amount'].toString()) >= amount) {
           return true;
         }
       }
@@ -197,14 +192,17 @@ class PaymentService {
         'https://api.flutterwave.com/v3/transactions/verify_by_reference?reference=$transactionRef',
       );
 
-      final response = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer $_secretKey'},
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            url,
+            headers: {'Authorization': 'Bearer $_secretKey'},
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final status = data['data']['status'] ?? 'unknown';
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final nestedData = data['data'] as Map<String, dynamic>?;
+        final status = nestedData?['status'] as String? ?? 'unknown';
 
         switch (status) {
           case 'successful':

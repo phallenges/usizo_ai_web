@@ -24,11 +24,13 @@ Future<void> main() async {
     vectorIndex: vectorIndex,
   );
 
-  runApp(UsizoAiApp(
-    store: store,
-    remedies: remedies,
-    checker: checker,
-  ));
+  runApp(
+    UsizoAiApp(
+      store: store,
+      remedies: remedies,
+      checker: checker,
+    ),
+  );
 }
 
 class UsizoAiApp extends StatelessWidget {

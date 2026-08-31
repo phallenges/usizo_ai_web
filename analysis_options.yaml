@@ -1,4 +1,7 @@
 analyzer:
+  errors:
+    missing_return: error
+    dead_code: warning
   exclude:
     - build/**
     - android/**
@@ -12,4 +15,15 @@ include: package:flutter_lints/flutter.yaml
 linter:
   rules:
     avoid_print: true
-    prefer_const_constructors: true
+    prefer_single_quotes: true
+    prefer_const_constructors: false
+    prefer_const_literals_to_create_immutables: false
+    require_trailing_commas: true
+    avoid_dynamic_calls: true
+    prefer_final_locals: true
+    unawaited_futures: true
+    prefer_is_empty: true
+    prefer_is_not_empty: true
+    use_key_in_widget_constructors: true
+    sized_box_for_whitespace: true
+    sort_child_properties_last: true

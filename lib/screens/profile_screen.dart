@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/user_profile.dart';
 import '../services/app_store.dart';
+import 'dart:async';
+
 import '../services/integration_stubs.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -68,7 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     // Show loading
     if (!mounted) return;
-    showDialog<void>(
+    unawaited(showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
@@ -76,14 +78,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           height: 80,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Processing payment...'),
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text('Processing payment...'),
             ],
           ),
         ),
       ),
+    ),
     );
 
     try {
@@ -139,8 +142,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
-          Text('Your profile',
-              style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            'Your profile',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
           const SizedBox(height: 6),
           const Text('Your information stays on this device.'),
           const SizedBox(height: 22),
@@ -199,13 +204,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
+                            children: [
+                              const Text(
                                 'UsizoAI Plus',
                                 style: TextStyle(fontWeight: FontWeight.bold),
                               ),
-                              SizedBox(height: 4),
-                              Text('Unlimited checks enabled.'),
+                              const SizedBox(height: 4),
+                              const Text('Unlimited checks enabled.'),
                             ],
                           ),
                         ),
@@ -227,13 +232,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
+                              children: [
+                                const Text(
                                   'Unlock UsizoAI Plus',
                                   style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
-                                SizedBox(height: 4),
-                                Text('Unlimited checks, saved history, and more.'),
+                                const SizedBox(height: 4),
+                                const Text('Unlimited checks, saved history, and more.'),
                               ],
                             ),
                           ),
@@ -241,7 +246,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 12),
                       FilledButton(
-                        onPressed: () => _subscribePremium(),
+                        onPressed: () => unawaited(_subscribePremium()),
                         child: const Text('Subscribe for \$1.50'),
                       ),
                     ],

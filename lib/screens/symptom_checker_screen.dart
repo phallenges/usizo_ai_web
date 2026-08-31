@@ -1,10 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/remedy.dart';
 import '../services/app_store.dart';
-import '../services/embedding_service.dart';
 import '../services/symptom_checker.dart';
-import '../services/vector_index_service.dart';
 import '../widgets/premium_banner.dart';
 import '../widgets/remedy_card.dart';
 import 'emergency_screen.dart';
@@ -62,7 +62,7 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
       }
       if (!widget.store.recordCheck()) {
         if (!mounted) return;
-        showDialog<void>(
+        unawaited(showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Free checks used'),
@@ -83,6 +83,7 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
               ),
             ],
           ),
+        ),
         );
         return;
       }
@@ -112,17 +113,23 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('UsizoAI',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  )),
+              Text(
+                'UsizoAI',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
               DropdownButton<String>(
                 value: language,
                 underline: const SizedBox.shrink(),
                 items: const ['English', 'Shona', 'Ndebele']
-                    .map((item) =>
-                        DropdownMenuItem(value: item, child: Text(item)))
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(item),
+                      ),
+                    )
                     .toList(),
                 onChanged: (value) => setState(() => language = value!),
               ),
@@ -149,8 +156,7 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
             minLines: 4,
             maxLines: 6,
             textInputAction: TextInputAction.newline,
-            enabled: !isChecking,
-            decoration: const InputDecoration(
+            enabled: !isChecking,                    decoration: const InputDecoration(
               hintText: 'Example: I have a mild headache since this morning...',
               prefixIcon: Padding(
                 padding: EdgeInsets.only(bottom: 58),
@@ -173,7 +179,7 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: isChecking ? null : checkSymptoms,
+            onPressed: isChecking ? null : () => checkSymptoms(),
             icon: isChecking
                 ? const SizedBox(
                     width: 24,

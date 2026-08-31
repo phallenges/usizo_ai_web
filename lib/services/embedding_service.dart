@@ -1,33 +1,30 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
+import 'vector_index_service.dart';
+
 /// Service for generating text embeddings using ONNX model
 /// Uses ONNX Runtime for optimal cross-platform performance
-class EmbeddingService {
+class EmbeddingService implements EmbeddingServiceBase {
   static const modelPath = 'assets/models/all_minilm_l12_v2.onnx';
   static const embeddingDim = 384;
   static const maxTokenLength = 512;
 
-  late dynamic _interpreter;
   bool _isInitialized = false;
 
   /// Initialize the embedding service by loading the ONNX model
   /// 
   /// Note: ONNX Runtime provides better performance than TFLite
   /// and is the production-standard for sentence-transformers models.
+  @override
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
       // Load the ONNX model from assets
-      final modelBytes = await rootBundle.load(modelPath);
-      
-      // For full ONNX support, use the onnx_runtime_flutter package
-      // https://pub.dev/packages/onnx_runtime_flutter
-      // For now, we'll initialize with the raw bytes
-      // and defer to native platform implementations
-      
+      await rootBundle.load(modelPath);
       _isInitialized = true;
     } catch (e) {
       throw Exception('Failed to initialize embedding model: $e');
@@ -36,6 +33,7 @@ class EmbeddingService {
 
   /// Generate an embedding vector for the given text
   /// Returns a list of 384 floats representing the semantic meaning
+  @override
   Future<List<double>> embed(String text) async {
     if (!_isInitialized) {
       await initialize();
@@ -83,10 +81,7 @@ class EmbeddingService {
     normA = normA > 0 ? normA : 1.0;
     normB = normB > 0 ? normB : 1.0;
     
-    final normASqrt = normA.sqrt;
-    final normBSqrt = normB.sqrt;
-    
-    return dotProduct / (normASqrt * normBSqrt);
+    return dotProduct / (sqrt(normA) * sqrt(normB));
   }
 
   /// Deterministic embedding generation for fallback/testing
@@ -149,13 +144,14 @@ class EmbeddingService {
     for (final val in embedding) {
       norm += val * val;
     }
-    norm = norm.sqrt;
+    norm = sqrt(norm);
     if (norm == 0) norm = 1.0;
 
     return embedding.map((val) => val / norm).toList();
   }
 
   /// Dispose of resources
+  @override
   void dispose() {
     _isInitialized = false;
   }
