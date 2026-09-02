@@ -14,6 +14,9 @@ class EmbeddingService implements EmbeddingServiceBase {
 
   bool _isInitialized = false;
 
+  @override
+  bool get canBuildSemanticIndex => false;
+
   /// Initialize the embedding service by loading the ONNX model
   /// 
   /// Note: ONNX Runtime provides better performance than TFLite

@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/localized.dart';
 import '../models/user_profile.dart';
 import '../services/app_store.dart';
-import 'dart:async';
-
+import '../services/vendor_store.dart';
+import 'activate_screen.dart';
+import 'payment_details_screen.dart';
+import 'vendor_auth_screen.dart';
+import 'vendor_dashboard_screen.dart';
 import '../services/integration_stubs.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({required this.store, super.key});
+  const ProfileScreen({
+    required this.store,
+    required this.vendorStore,
+    super.key,
+  });
 
   final AppStore store;
+  final VendorStore vendorStore;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -50,7 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile saved on this device.')),
+      SnackBar(content: Text(context.tr('profile.saved'))),
     );
   }
 
@@ -58,79 +67,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final name = nameController.text.trim();
     final email = emailController.text.trim();
 
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your email before subscribing.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    // Show loading
-    if (!mounted) return;
-    unawaited(showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        content: SizedBox(
-          height: 80,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              const Text('Processing payment...'),
-            ],
-          ),
-        ),
-      ),
-    ),
+    final gateway = ProductionPaymentGateway();
+    final instruction = gateway.subscribePremium(
+      userEmail: email,
+      userName: name.isNotEmpty ? name : 'User',
     );
 
-    try {
-      final gateway = ProductionPaymentGateway();
-      final result = await gateway.subscribePremium(
-        userEmail: email,
-        userName: name.isNotEmpty ? name : 'User',
-        context: context,
+    if (!mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PaymentDetailsScreen(instruction: instruction),
+      ),
+    );
+  }
+
+  void _activateToken() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ActivateScreen(store: widget.store),
+      ),
+    );
+  }
+
+  void _openVendorPortal() {
+    if (widget.vendorStore.isSignedIn) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              VendorDashboardScreen(vendorStore: widget.vendorStore),
+        ),
       );
-
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
-
-      if (result.isSuccess) {
-        widget.store.setPremium(true);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '✅ Welcome to UsizoAI Plus!\nRef: ${result.transactionRef}',
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('❌ Payment failed: ${result.errorReason}'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Error: $e'),
-          backgroundColor: Colors.red,
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VendorAuthScreen(vendorStore: widget.vendorStore),
         ),
       );
     }
@@ -143,50 +118,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
           Text(
-            'Your profile',
+            context.tr('profile.title'),
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 6),
-          const Text('Your information stays on this device.'),
+          Text(context.tr('profile.staysOnDevice')),
           const SizedBox(height: 22),
           TextField(
             controller: nameController,
-            decoration: const InputDecoration(
-              labelText: 'Name',
-              prefixIcon: Icon(Icons.person_outline),
+            decoration: InputDecoration(
+              labelText: context.tr('profile.name'),
+              prefixIcon: const Icon(Icons.person_outline),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: emailController,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email (optional)',
-              prefixIcon: Icon(Icons.email_outlined),
+            decoration: InputDecoration(
+              labelText: context.tr('profile.emailOptional'),
+              prefixIcon: const Icon(Icons.email_outlined),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: allergiesController,
-            decoration: const InputDecoration(
-              labelText: 'Allergies or sensitivities',
-              prefixIcon: Icon(Icons.warning_amber_outlined),
+            decoration: InputDecoration(
+              labelText: context.tr('profile.allergies'),
+              prefixIcon: const Icon(Icons.warning_amber_outlined),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: emergencyController,
             keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: 'Emergency contact',
-              prefixIcon: Icon(Icons.contact_phone_outlined),
+            decoration: InputDecoration(
+              labelText: context.tr('profile.emergencyContact'),
+              prefixIcon: const Icon(Icons.contact_phone_outlined),
             ),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: save,
             icon: const Icon(Icons.save_outlined),
-            label: const Text('Save profile'),
+            label: Text(context.tr('profile.saveProfile')),
           ),
           const SizedBox(height: 24),
           AnimatedBuilder(
@@ -205,12 +180,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'UsizoAI Plus',
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                              Text(
+                                context.tr('profile.usizoPlus'),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 4),
-                              const Text('Unlimited checks enabled.'),
+                              Text(context.tr('profile.unlimitedChecksEnabled')),
                             ],
                           ),
                         ),
@@ -233,12 +208,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Unlock UsizoAI Plus',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                Text(
+                                  context.tr('profile.unlockPlus'),
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 4),
-                                const Text('Unlimited checks, saved history, and more.'),
+                                Text(context.tr('profile.plusDescription')),
                               ],
                             ),
                           ),
@@ -246,8 +221,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 12),
                       FilledButton(
-                        onPressed: () => unawaited(_subscribePremium()),
-                        child: const Text('Subscribe for \$1.50'),
+                        onPressed: _subscribePremium,
+                        child: Text(context.tr('profile.payWithEcoCash')),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: _activateToken,
+                        child: Text(context.tr('profile.hasToken')),
                       ),
                     ],
                   ),
@@ -255,18 +235,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
             },
           ),
+          const SizedBox(height: 24),
+          AnimatedBuilder(
+            animation: widget.vendorStore,
+            builder: (context, _) {
+              final signedIn = widget.vendorStore.isSignedIn;
+              final vendor = widget.vendorStore.currentVendor;
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            signedIn ? Icons.store : Icons.storefront_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  signedIn
+                                      ? context.tr('profile.yourVendorShop')
+                                      : context.tr('profile.sellOnUsizo'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  signedIn
+                                      ? '${vendor?.name ?? 'Shop'} · ${widget.vendorStore.currentVendorProducts.length} ${context.tr('profile.products')}'
+                                      : context.tr('profile.signupDescription'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        onPressed: _openVendorPortal,
+                        child: Text(
+                          signedIn ? context.tr('profile.manageShop') : context.tr('profile.becomeVendor'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          AnimatedBuilder(
+            animation: widget.store,
+            builder: (context, _) {
+              final orders = widget.store.orders;
+              if (orders.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr('profile.orderHistory'),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...orders.take(5).map(
+                    (order) => Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: const Icon(Icons.receipt_long_outlined),
+                        title: Text(order.reference),
+                        subtitle: Text(
+                          '${order.items.length} item(s) · ${order.status.name}',
+                        ),
+                        trailing: Text(
+                          order.totalLabel,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              );
+            },
+          ),
           const SizedBox(height: 20),
-          const Card(
+          Card(
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Text(
-                'Safety first\n\nUsizoAI does not replace a qualified healthcare professional. Never delay emergency care based on an app suggestion.',
+                context.tr('market.safetyFirst'),
               ),
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'UsizoAI is not a replacement for professional medical care. Always consult a doctor for serious conditions.',
+          Text(
+            context.tr('market.disclaimer'),
             textAlign: TextAlign.center,
           ),
         ],

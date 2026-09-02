@@ -1,6 +1,3 @@
-import 'package:flutter/material.dart';
-
-import '../models/remedy.dart';
 import 'payment_service.dart';
 
 abstract interface class AiProvider {
@@ -24,54 +21,21 @@ class CredentialedAiProvider implements AiProvider {
   }
 }
 
-abstract interface class PaymentGateway {
-  Future<PaymentResult> subscribePremium({
-    required String userEmail,
-    required String userName,
-    required BuildContext context,
-  });
-
-  Future<PaymentResult> checkoutCart({
-    required String userEmail,
-    required String userName,
-    required List<Remedy> items,
-    required BuildContext context,
-  });
-}
-
-class ProductionPaymentGateway implements PaymentGateway {
+/// Simple wrapper around PaymentService for premium subscriptions.
+///
+/// Marketplace products are handled by contacting vendors directly —
+/// no automated checkout needed.
+class ProductionPaymentGateway {
   final PaymentService _paymentService;
 
-  ProductionPaymentGateway({
-    PaymentService? paymentService,
-  }) : _paymentService = paymentService ?? PaymentService(isTestMode: true);
+  ProductionPaymentGateway({PaymentService? paymentService})
+      : _paymentService = paymentService ?? PaymentService();
 
-  @override
-  Future<PaymentResult> subscribePremium({
+  /// Generate a subscription payment instruction.
+  PaymentInstruction subscribePremium({
     required String userEmail,
     required String userName,
-    required BuildContext context,
-  }) async {
-    return await _paymentService.processPremiumSubscription(
-      context: context,
-      userEmail: userEmail,
-      userName: userName,
-    );
-  }
-
-  @override
-  Future<PaymentResult> checkoutCart({
-    required String userEmail,
-    required String userName,
-    required List<Remedy> items,
-    required BuildContext context,
-  }) async {
-    return await _paymentService.processOrder(
-      context: context,
-      userEmail: userEmail,
-      userName: userName,
-      items: items,
-    );
+  }) {
+    return _paymentService.subscriptionInstruction(userName: userName);
   }
 }
-

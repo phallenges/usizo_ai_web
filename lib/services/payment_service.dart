@@ -1,292 +1,105 @@
-import 'dart:convert';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutterwave_standard/flutterwave.dart';
-import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
-import '../models/remedy.dart';
-
-/// Production payment service using Flutterwave
-/// Handles both premium subscriptions and marketplace orders
+/// Payment service for premium subscriptions only.
+///
+/// Marketplace products are handled by contacting vendors directly.
+/// Users send money via EcoCash and confirm with a reference number.
 class PaymentService {
-  final bool isTestMode;
+  // ── Configure your payment details here ──────────────────────────
+  static const ecocashNumber = '0774605104';
+  static const accountName = 'UsizoAI';
+  // ─────────────────────────────────────────────────────────────────
 
-  PaymentService({this.isTestMode = true});
+  /// Generate a unique reference the user should include when paying.
+  String generateReference() {
+    final short =
+        const Uuid().v4().replaceAll('-', '').substring(0, 8).toUpperCase();
+    return 'USIZO-$short';
+  }
 
-  String get _publicKey => dotenv.env['FLUTTERWAVE_PUBLIC_KEY'] ?? '';
-  String get _secretKey => dotenv.env['FLUTTERWAVE_SECRET_KEY'] ?? '';
-
-  /// Process premium subscription payment ($1.50)
-  Future<PaymentResult> processPremiumSubscription({
-    required BuildContext context,
-    required String userEmail,
+  /// Create a payment instruction for a premium subscription.
+  PaymentInstruction subscriptionInstruction({
     required String userName,
-  }) async {
-    try {
-      final transactionRef = _generateTransactionRef();
-
-      final flutterwave = Flutterwave(
-        publicKey: _publicKey,
-        currency: 'USD',
-        redirectUrl: '',
-        txRef: transactionRef,
-        amount: '1.50',
-        customer: Customer(
-          name: userName.isNotEmpty ? userName : 'User',
-          phoneNumber: '+263712000000',
-          email: userEmail.isNotEmpty ? userEmail : 'user@usizo.app',
-        ),
-        paymentOptions: 'ussd, card, bank transfer',
-        customization: Customization(
-          title: 'UsizoAI Plus',
-          description: 'Unlimited health checks for premium users',
-        ),
-        isTestMode: isTestMode,
-      );
-
-      final response = await flutterwave.charge(context);
-
-      if (response.success == true) {
-        final verified = await _verifyPayment(
-          transactionRef: transactionRef,
-          amount: 1.50,
-          userEmail: userEmail,
-        );
-        if (verified) {
-          return PaymentResult.success(
-            transactionRef: transactionRef,
-            amount: 1.50,
-          );
-        }
-      }
-
-      return PaymentResult.failed(
-        transactionRef: transactionRef,
-        reason: 'Payment cancelled or failed',
-      );
-    } catch (e) {
-      return PaymentResult.failed(
-        transactionRef: '',
-        reason: 'Payment error: $e',
-      );
-    }
-  }
-
-  /// Process marketplace order (bundle of remedies)
-  Future<PaymentResult> processOrder({
-    required BuildContext context,
-    required String userEmail,
-    required String userName,
-    required List<Remedy> items,
-  }) async {
-    try {
-      if (items.isEmpty) {
-        return PaymentResult.failed(
-          transactionRef: '',
-          reason: 'Cart is empty',
-        );
-      }
-
-      final totalCents = items.fold(0, (sum, r) => sum + r.priceCents);
-      final totalUsd = (totalCents / 100).toStringAsFixed(2);
-      final transactionRef = _generateTransactionRef();
-
-      final flutterwave = Flutterwave(
-        publicKey: _publicKey,
-        currency: 'USD',
-        redirectUrl: '',
-        txRef: transactionRef,
-        amount: totalUsd,
-        customer: Customer(
-          name: userName.isNotEmpty ? userName : 'Customer',
-          phoneNumber: '+263712000000',
-          email: userEmail.isNotEmpty ? userEmail : 'customer@usizo.app',
-        ),
-        paymentOptions: 'ussd, card, bank transfer',
-        customization: Customization(
-          title: 'UsizoAI Wellness Store',
-          description:
-              '${items.length} item${items.length > 1 ? 's' : ''} - USD $totalUsd',
-        ),
-        isTestMode: isTestMode,
-      );
-
-      final response = await flutterwave.charge(context);
-
-      if (response.success == true) {
-        final verified = await _verifyPayment(
-          transactionRef: transactionRef,
-          amount: double.parse(totalUsd),
-          userEmail: userEmail,
-        );
-        if (verified) {
-          return PaymentResult.success(
-            transactionRef: transactionRef,
-            amount: double.parse(totalUsd),
-          );
-        }
-      }
-
-      return PaymentResult.failed(
-        transactionRef: transactionRef,
-        reason: 'Payment cancelled or failed',
-      );
-    } catch (e) {
-      return PaymentResult.failed(
-        transactionRef: '',
-        reason: 'Order payment error: $e',
-      );
-    }
-  }
-
-  /// Verify payment with Flutterwave backend
-  /// Ensures payment was actually processed before granting access
-  Future<bool> _verifyPayment({
-    required String transactionRef,
-    required double amount,
-    required String userEmail,
-  }) async {
-    try {
-      final url = Uri.parse(
-        'https://api.flutterwave.com/v3/transactions/verify_by_reference?reference=$transactionRef',
-      );
-
-      final response = await http
-          .get(
-            url,
-            headers: {
-              'Authorization': 'Bearer $_secretKey',
-              'Content-Type': 'application/json',
-            },
-          )
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final nestedData = data['data'] as Map<String, dynamic>?;
-
-        if (data['status'] == 'success' &&
-            nestedData != null &&
-            nestedData['status'] == 'successful' &&
-            double.parse(nestedData['amount'].toString()) >= amount) {
-          return true;
-        }
-      }
-
-      return false;
-    } catch (_) {
-      // Network error or timeout - payment status unknown
-      // In production, implement retry logic with exponential backoff
-      return false;
-    }
-  }
-
-  /// Check payment status (for offline retry logic)
-  Future<PaymentStatus> checkPaymentStatus(String transactionRef) async {
-    if (transactionRef.isEmpty) return PaymentStatus.unknown;
-
-    try {
-      final url = Uri.parse(
-        'https://api.flutterwave.com/v3/transactions/verify_by_reference?reference=$transactionRef',
-      );
-
-      final response = await http
-          .get(
-            url,
-            headers: {'Authorization': 'Bearer $_secretKey'},
-          )
-          .timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final nestedData = data['data'] as Map<String, dynamic>?;
-        final status = nestedData?['status'] as String? ?? 'unknown';
-
-        switch (status) {
-          case 'successful':
-            return PaymentStatus.completed;
-          case 'pending':
-            return PaymentStatus.pending;
-          case 'failed':
-            return PaymentStatus.failed;
-          default:
-            return PaymentStatus.unknown;
-        }
-      }
-
-      return PaymentStatus.unknown;
-    } catch (_) {
-      return PaymentStatus.unknown;
-    }
-  }
-
-  /// Generate unique transaction reference
-  String _generateTransactionRef() {
-    final uuid = const Uuid().v4().replaceAll('-', '').substring(0, 12);
-    final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    return 'usizo_${timestamp}_$uuid';
-  }
-
-  /// Get test credentials for sandbox mode
-  static Map<String, String> getTestCredentials() {
-    return {
-      'card': '4242424242424242',
-      'cvv': '123',
-      'expiry': '12/25',
-      'pin': '1234',
-      'otp': '123456',
-      'phone': '+254712345678',
-    };
+  }) {
+    return PaymentInstruction(
+      amountUsd: 1.50,
+      reference: generateReference(),
+      description: 'UsizoAI Plus — Unlimited health checks',
+      recipientName: accountName,
+      ecocashNumber: ecocashNumber,
+    );
   }
 }
 
-/// Represents the result of a payment operation
-class PaymentResult {
-  final bool isSuccess;
-  final String transactionRef;
-  final double amount;
-  final String? errorReason;
+/// A payment instruction shown to the user so they can pay manually.
+class PaymentInstruction {
+  final double amountUsd;
+  final String reference;
+  final String description;
+  final String recipientName;
+  final String ecocashNumber;
 
-  PaymentResult({
-    required this.isSuccess,
-    required this.transactionRef,
-    required this.amount,
-    this.errorReason,
+  const PaymentInstruction({
+    required this.amountUsd,
+    required this.reference,
+    required this.description,
+    required this.recipientName,
+    required this.ecocashNumber,
   });
 
-  factory PaymentResult.success({
-    required String transactionRef,
-    required double amount,
-  }) {
-    return PaymentResult(
-      isSuccess: true,
-      transactionRef: transactionRef,
-      amount: amount,
-    );
-  }
-
-  factory PaymentResult.failed({
-    required String transactionRef,
-    required String reason,
-  }) {
-    return PaymentResult(
-      isSuccess: false,
-      transactionRef: transactionRef,
-      amount: 0,
-      errorReason: reason,
-    );
-  }
-
-  @override
-  String toString() =>
-      'PaymentResult(success: $isSuccess, ref: $transactionRef, amount: $amount${errorReason != null ? ', error: $errorReason' : ''})';
+  String get amountLabel => '\$${amountUsd.toStringAsFixed(2)}';
 }
 
-enum PaymentStatus {
-  completed,
-  pending,
-  failed,
-  unknown,
+/// Validates activation tokens offline.
+///
+/// Token format: USIZO-XXXXXXXX (8 hex chars after prefix)
+/// Validation: checksum is last 2 chars derived from the first 6.
+class TokenValidator {
+  static const _prefix = 'USIZO-';
+  static const _secret = 'USIZOAI2026';
+
+  /// Check if a token is valid.
+  static bool isValid(String token) {
+    final clean = token.trim().toUpperCase();
+    if (!clean.startsWith(_prefix)) return false;
+
+    final body = clean.substring(_prefix.length);
+    if (body.length != 8) return false;
+
+    final data = body.substring(0, 6);
+    final check = body.substring(6, 8);
+
+    // Simple checksum: sum of char codes * secret, modulo 256, hex encoded
+    var hash = 0;
+    for (int i = 0; i < data.length; i++) {
+      hash = ((hash << 5) + hash + data.codeUnitAt(i)) & 0xFF;
+    }
+    for (int i = 0; i < _secret.length; i++) {
+      hash = ((hash << 3) + hash + _secret.codeUnitAt(i)) & 0xFF;
+    }
+
+    final expected = hash.toRadixString(16).toUpperCase().padLeft(2, '0');
+    return check == expected;
+  }
+
+  /// Generate a valid token (for admin use).
+  static String generate(String userId) {
+    // Take first 6 chars of a clean identifier
+    final data = userId
+        .replaceAll(RegExp(r'[^A-Za-z0-9]'), '')
+        .toUpperCase()
+        .padRight(6, 'X')
+        .substring(0, 6);
+
+    var hash = 0;
+    for (int i = 0; i < data.length; i++) {
+      hash = ((hash << 5) + hash + data.codeUnitAt(i)) & 0xFF;
+    }
+    for (int i = 0; i < _secret.length; i++) {
+      hash = ((hash << 3) + hash + _secret.codeUnitAt(i)) & 0xFF;
+    }
+
+    final check = hash.toRadixString(16).toUpperCase().padLeft(2, '0');
+    return '$_prefix$data$check';
+  }
 }

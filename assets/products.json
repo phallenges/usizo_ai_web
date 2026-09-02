@@ -1,0 +1,112 @@
+[
+  {
+    "id": "prod-01",
+    "name": "Dried Moringa Leaves (100g)",
+    "vendorId": "vendor-01",
+    "priceCents": 3100,
+    "description": "Sun-dried Moringa oleifera leaves from local Mbare growers. Rich in vitamins A, C, and E. Use in teas, smoothies, or as a food supplement.",
+    "category": "Herbal remedy",
+    "tags": ["moringa", "immunity", "nutrition", "vitamins"],
+    "inStock": true,
+    "canBuyOnline": false
+  },
+  {
+    "id": "prod-02",
+    "name": "Zumbani Tea (50g)",
+    "vendorId": "vendor-01",
+    "priceCents": 2500,
+    "description": "Lippia javanica loose-leaf tea, naturally dried. Traditionally brewed for colds, flu, and chest complaints. Steep 2-3 leaves in boiling water for 5 minutes.",
+    "category": "Herbal tea",
+    "tags": ["zumbani", "cold", "flu", "tea", "respiratory"],
+    "inStock": true,
+    "canBuyOnline": true
+  },
+  {
+    "id": "prod-03",
+    "name": "Neem Capsules (60ct)",
+    "vendorId": "vendor-02",
+    "priceCents": 5500,
+    "description": "Azadirachta indica capsules for skin health and immune support. Take 1-2 capsules daily with water. Not recommended during pregnancy.",
+    "category": "Capsules",
+    "tags": ["neem", "skin", "immunity", "capsules"],
+    "inStock": true,
+    "canBuyOnline": false
+  },
+  {
+    "id": "prod-04",
+    "name": "Ginger & Turmeric Mix (200g)",
+    "vendorId": "vendor-02",
+    "priceCents": 4200,
+    "description": "Fresh-ground ginger and turmeric blend from organic Bulawayo farms. Anti-inflammatory properties. Mix 1 teaspoon into warm water or tea daily.",
+    "category": "Herbal blend",
+    "tags": ["ginger", "turmeric", "inflammation", "digestive"],
+    "inStock": true,
+    "canBuyOnline": true
+  },
+  {
+    "id": "prod-05",
+    "name": "Aloe Vera Gel (250ml)",
+    "vendorId": "vendor-03",
+    "priceCents": 3800,
+    "description": "Pure aloe vera gel for skin soothing, wound healing, and sunburn relief. Harvested from Chitungwiza-grown plants. Apply topically as needed.",
+    "category": "Topical",
+    "tags": ["aloe", "skin", "burns", "wound", "topical"],
+    "inStock": true,
+    "canBuyOnline": false
+  },
+  {
+    "id": "prod-06",
+    "name": "African Wormwood Bundle (50g)",
+    "vendorId": "vendor-03",
+    "priceCents": 2800,
+    "description": "Artemisia afra dried herb bundle, the most widely used traditional remedy in southern Africa. Brew as tea for coughs, colds, and respiratory infections.",
+    "category": "Herbal remedy",
+    "tags": ["wormwood", "respiratory", "cough", "cold", "tea"],
+    "inStock": true,
+    "canBuyOnline": false
+  },
+  {
+    "id": "prod-07",
+    "name": "Wild Garlic Tincture (30ml)",
+    "vendorId": "vendor-04",
+    "priceCents": 4800,
+    "description": "Allium sativum tincture from Eastern Highlands wild garlic. Take 5-10 drops in water daily for immune and cardiovascular support.",
+    "category": "Tincture",
+    "tags": ["garlic", "immunity", "cardiovascular", "tincture"],
+    "inStock": true,
+    "canBuyOnline": true
+  },
+  {
+    "id": "prod-08",
+    "name": "Fever Tree Bark Powder (100g)",
+    "vendorId": "vendor-05",
+    "priceCents": 6200,
+    "description": "Cinchona bark powder, traditional remedy for fevers and malaria symptoms. Mix 1/2 teaspoon in warm water. Consult a healer before use.",
+    "category": "Herbal powder",
+    "tags": ["fever", "malaria", "bark", "antimalarial"],
+    "inStock": false,
+    "canBuyOnline": false
+  },
+  {
+    "id": "prod-09",
+    "name": "Lion's Tail Tea (40g)",
+    "vendorId": "vendor-05",
+    "priceCents": 3500,
+    "description": "Leonotis leonurus loose-leaf tea. Calming herb traditionally used for anxiety, insomnia, and tension. Steep 1 tablespoon in boiling water for 10 minutes.",
+    "category": "Herbal tea",
+    "tags": ["anxiety", "sleep", "calming", "tea"],
+    "inStock": true,
+    "canBuyOnline": true
+  },
+  {
+    "id": "prod-10",
+    "name": "Baobab Powder (150g)",
+    "vendorId": "vendor-01",
+    "priceCents": 5000,
+    "description": "Ground baobab fruit pulp, extremely high in vitamin C and fibre. Add to porridge, smoothies, or juice. Sourced from mature baobab trees in Masvingo.",
+    "category": "Superfood",
+    "tags": ["baobab", "vitamin-c", "fibre", "superfood", "nutrition"],
+    "inStock": true,
+    "canBuyOnline": true
+  }
+]

@@ -9,6 +9,9 @@ abstract class EmbeddingServiceBase {
   Future<void> initialize();
   Future<List<double>> embed(String text);
   void dispose();
+
+  /// Whether this service can produce meaningful semantic embeddings.
+  bool get canBuildSemanticIndex => true;
   static double cosineSimilarity(List<double> a, List<double> b) => 0.0;
 }
 
@@ -71,6 +74,10 @@ class VectorIndexService {
     }
 
     await _embeddingService.initialize();
+
+    if (!_embeddingService.canBuildSemanticIndex) {
+      return;
+    }
 
     final storedVersion = _prefs.getInt(_indexVersionKey) ?? 0;
     if (storedVersion == _currentVersion && _isCacheValid(catalog)) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/localized.dart';
 import '../services/emergency_service.dart';
 
 class EmergencyScreen extends StatelessWidget {
@@ -14,8 +15,8 @@ class EmergencyScreen extends StatelessWidget {
       SnackBar(
         content: Text(
           called
-              ? 'Opening your emergency dialer…'
-              : 'Dial 112 (South Africa) or your local emergency number now.',
+              ? context.tr('emergency.openingDialer')
+              : '${context.tr('emergency.dialNow')} ${EmergencyService.emergencyNumber}',
         ),
       ),
     );
@@ -24,7 +25,7 @@ class EmergencyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Urgent help')),
+      appBar: AppBar(title: Text(context.tr('emergency.title'))),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -33,7 +34,7 @@ class EmergencyScreen extends StatelessWidget {
             const Icon(Icons.emergency, size: 72, color: Colors.red),
             const SizedBox(height: 18),
             Text(
-              'Please get help now',
+              context.tr('emergency.pleaseGetHelp'),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
@@ -50,7 +51,7 @@ class EmergencyScreen extends StatelessWidget {
               ),
               onPressed: () => _call(context),
               icon: const Icon(Icons.phone),
-              label: const Text('Call emergency services'),
+              label: Text(context.tr('emergency.callServices')),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
@@ -59,27 +60,27 @@ class EmergencyScreen extends StatelessWidget {
                     await const EmergencyService().findNearestClinic();
                 if (!context.mounted || opened) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Open Google Maps to find a clinic nearby.'),
+                SnackBar(
+                  content: Text(context.tr('emergency.findClinicMsg')),
                   ),
                 );
               },
               icon: const Icon(Icons.location_on_outlined),
-              label: const Text('Find nearest clinic'),
+              label: Text(context.tr('emergency.findClinic')),
             ),
             const SizedBox(height: 10),
             OutlinedButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Return to checker'),
+              child: Text(context.tr('emergency.returnToChecker')),
             ),
             const Spacer(),
-            const Text(
-              'If you are with someone who is unwell, stay with them and follow the dispatcher’s instructions.',
+            Text(
+              context.tr('emergency.withSomeone'),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 14),
-            const Text(
-              'UsizoAI is not a replacement for professional medical care. Always consult a doctor for serious conditions.',
+            Text(
+              context.tr('market.disclaimer'),
               textAlign: TextAlign.center,
             ),
           ],

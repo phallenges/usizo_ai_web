@@ -2,17 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../models/remedy.dart';
 
+/// Displays a single remedy as a guidance card.
+///
+/// Used in the symptom checker results to show matched remedies
+/// with preparation, dosage, and safety info.
 class RemedyCard extends StatelessWidget {
   const RemedyCard({
     required this.remedy,
-    required this.onAdd,
+    this.languageCode = 'en',
+    this.onTap,
     this.compact = false,
     super.key,
   });
 
   final Remedy remedy;
-  final VoidCallback onAdd;
+  final String languageCode;
+  final VoidCallback? onTap;
   final bool compact;
+
+  String get _localName {
+    return remedy.localNames[languageCode] ??
+        remedy.localNames['en'] ??
+        remedy.name;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,20 +52,13 @@ class RemedyCard extends StatelessWidget {
                         ),
                   ),
                 ),
-                Text(
-                  remedy.priceLabel,
-                  style: TextStyle(
-                    color: colors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 10),
             Text(remedy.description),
             const SizedBox(height: 6),
             Text(
-              '${remedy.scientificName} • ${remedy.localNames.values.join(', ')}',
+              '${remedy.scientificName} • $_localName',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             if (!compact) ...[
@@ -76,12 +81,14 @@ class RemedyCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text('Evidence: ${remedy.evidenceSource}'),
             ],
-            const SizedBox(height: 12),
-            FilledButton.tonalIcon(
-              onPressed: onAdd,
-              icon: const Icon(Icons.add_shopping_cart),
-              label: const Text('Add to basket'),
-            ),
+            if (onTap != null) ...[
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: onTap,
+                icon: const Icon(Icons.info_outline),
+                label: const Text('Learn more'),
+              ),
+            ],
           ],
         ),
       ),

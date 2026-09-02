@@ -12,20 +12,31 @@ dependencies:
   shared_preferences: ^2.3.2
   url_launcher: ^6.3.1
   onnxruntime: ^1.4.1
-  vector_math: ^2.1.4
-  flutterwave_standard: ^1.1.0
-  http: ^1.1.0
   uuid: ^4.0.0
-  flutter_dotenv: ^5.1.0
+  connectivity_plus: ^6.1.0
+  geolocator: ^13.0.1
+  geocoding: ^3.0.0
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: 'assets/images/app_icon.png'
+  adaptive_icon_background: '#087f70'
+  adaptive_icon_foreground: 'assets/images/app_icon.png'
 
 flutter:
   uses-material-design: true
   assets:
     - assets/remedies.json
+    - assets/vendors.json
+    - assets/products.json
+    - assets/images/app_icon.png
     - assets/models/all_minilm_l12_v2.onnx
 

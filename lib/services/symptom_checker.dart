@@ -60,12 +60,10 @@ class SymptomChecker {
     _isInitialized = true;
   }
 
+  bool get _semanticSearchAvailable => _embeddingService.canBuildSemanticIndex;
+
   /// Analyze symptoms using semantic matching
   Future<CheckResult> analyze(String input, List<Remedy> catalog) async {
-    if (!_isInitialized) {
-      await initialize(catalog);
-    }
-
     final symptoms = input.trim();
     final normalized = symptoms.toLowerCase();
 
@@ -86,6 +84,18 @@ class SymptomChecker {
       );
     }
 
+    if (!_semanticSearchAvailable) {
+      return _fallbackAnalyze(symptoms, catalog);
+    }
+
+    if (!_isInitialized) {
+      await initialize(catalog);
+    }
+
+    if (!_semanticSearchAvailable) {
+      return _fallbackAnalyze(symptoms, catalog);
+    }
+
     try {
       // Use semantic search to find matching remedies
       final results = await _vectorIndex.search(
@@ -95,12 +105,7 @@ class SymptomChecker {
       );
 
       if (results.isEmpty) {
-        return CheckResult(
-          symptoms: symptoms,
-          possibleCondition: 'General wellness concern',
-          confidence: 0,
-          remedies: const [],
-        );
+        return _fallbackAnalyze(symptoms, catalog);
       }
 
       // Infer condition from top match
@@ -169,16 +174,28 @@ class SymptomChecker {
       confidence = 70;
     }
 
-    final matches = catalog
-        .where(
-          (remedy) =>
-              remedy.tags.any(normalized.contains) ||
-              remedy.category.toLowerCase().contains(
-                    condition.toLowerCase().split(' ').first,
-                  ),
-        )
-        .take(3)
-        .toList();
+    final scored = <(Remedy, int)>[];
+    for (final remedy in catalog) {
+      final haystack =
+          '${remedy.name} ${remedy.description} ${remedy.category} ${remedy.tags.join(' ')}'
+              .toLowerCase();
+      var score = 0;
+      for (final tag in remedy.tags) {
+        if (normalized.contains(tag.toLowerCase())) {
+          score += 3;
+        }
+      }
+      for (final word in normalized.split(RegExp(r'\s+'))) {
+        if (word.length < 3) continue;
+        if (haystack.contains(word)) score += 2;
+      }
+      if (score > 0) {
+        scored.add((remedy, score));
+      }
+    }
+
+    scored.sort((a, b) => b.$2.compareTo(a.$2));
+    final matches = scored.take(3).map((entry) => entry.$1).toList();
     return CheckResult(
       symptoms: symptoms,
       possibleCondition: condition,

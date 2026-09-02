@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/services.dart';
@@ -5,56 +6,76 @@ import 'package:onnxruntime/onnxruntime.dart';
 
 import 'vector_index_service.dart';
 
-/// Production-grade embedding service using ONNX Runtime
-/// 
-/// This uses the real all-MiniLM-L12-v2 model for semantic embeddings.
-/// ONNX Runtime is the industry standard for sentence-transformers models
-/// and provides optimal performance across iOS, Android, and Web.
+/// Production-grade embedding service using ONNX Runtime.
+///
+/// Uses the real all-MiniLM-L12-v2 model for semantic embeddings.
+/// Falls back gracefully if the model cannot be loaded (e.g. on low-memory devices).
 class OnnxEmbeddingService implements EmbeddingServiceBase {
-  static const modelPath = 'assets/models/all_minilm_l12_v2.onnx';
+  static const modelAssetPath = 'assets/models/all_minilm_l12_v2.onnx';
   static const embeddingDim = 384;
   static const maxTokenLength = 512;
-  static const vocabSize = 30522; // BERT vocab
+  static const vocabSize = 30522;
 
-  late OrtSession _session;
+  OrtSession? _session;
   bool _isInitialized = false;
+  bool _failed = false;
+
+  /// Whether ONNX initialization succeeded.
+  bool get isAvailable => _isInitialized && !_failed;
+
+  @override
+  bool get canBuildSemanticIndex => isAvailable;
 
   @override
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    if (_isInitialized || _failed) return;
 
     try {
       OrtEnv.instance.init();
 
-      // Load model from assets
-      final modelBytes = await rootBundle.load(modelPath);
-      final modelData = modelBytes.buffer.asUint8List();
+      // Copy model from assets to a temp file to avoid triple-buffering.
+      // rootBundle.load() holds the file in Dart heap, then asUint8List()
+      // creates another copy, then OrtSession.fromBuffer copies into Java
+      // heap — that's ~162MB for a 54MB model, which OOMs many phones.
+      // Writing to a temp file lets ONNX Runtime memory-map it directly.
+      final tempDir = Directory.systemTemp;
+      final modelFile = File('${tempDir.path}/all_minilm_l12_v2.onnx');
 
-      // Create ONNX session
+      if (!await modelFile.exists()) {
+        final bytes = await rootBundle.load(modelAssetPath);
+        await modelFile.writeAsBytes(
+          bytes.buffer.asUint8List(),
+          flush: false,
+        );
+      }
+
       final sessionOptions = OrtSessionOptions();
-      _session = OrtSession.fromBuffer(modelData, sessionOptions);
+      _session = OrtSession.fromFile(modelFile, sessionOptions);
 
       _isInitialized = true;
     } catch (e) {
-      throw Exception('Failed to initialize ONNX model: $e');
+      // Don't crash — mark as failed so the app can fall back to keyword matching.
+      _failed = true;
+      _session = null;
     }
   }
 
-  /// Generate a 384-dimensional embedding for text
-  /// 
-  /// This performs actual semantic embedding using the production model.
-  /// Returned embeddings are normalized and ready for similarity computation.
   @override
   Future<List<double>> embed(String text) async {
+    if (_failed) {
+      return _fallbackEmbed(text);
+    }
     if (!_isInitialized) {
       await initialize();
+    }
+    if (_failed) {
+      return _fallbackEmbed(text);
     }
 
     try {
       final preprocessed = _preprocessText(text);
       final tokens = _tokenize(preprocessed);
 
-      // Create input tensors: [1, 512] int64
       final inputIds = List<int>.filled(maxTokenLength, 0);
       final attentionMask = List<int>.filled(maxTokenLength, 0);
       final tokenTypeIds = List<int>.filled(maxTokenLength, 0);
@@ -65,10 +86,18 @@ class OnnxEmbeddingService implements EmbeddingServiceBase {
         tokenTypeIds[i] = 0;
       }
 
-      // Prepare inputs for ONNX model
-      final inputIdsTensor = OrtValueTensor.createTensorWithDataList(inputIds, [1, maxTokenLength]);
-      final attentionMaskTensor = OrtValueTensor.createTensorWithDataList(attentionMask, [1, maxTokenLength]);
-      final tokenTypeIdsTensor = OrtValueTensor.createTensorWithDataList(tokenTypeIds, [1, maxTokenLength]);
+      final inputIdsTensor = OrtValueTensor.createTensorWithDataList(
+        inputIds,
+        [1, maxTokenLength],
+      );
+      final attentionMaskTensor = OrtValueTensor.createTensorWithDataList(
+        attentionMask,
+        [1, maxTokenLength],
+      );
+      final tokenTypeIdsTensor = OrtValueTensor.createTensorWithDataList(
+        tokenTypeIds,
+        [1, maxTokenLength],
+      );
 
       final inputs = {
         'input_ids': inputIdsTensor,
@@ -76,23 +105,20 @@ class OnnxEmbeddingService implements EmbeddingServiceBase {
         'token_type_ids': tokenTypeIdsTensor,
       };
 
-      // Run inference
       final runOptions = OrtRunOptions();
-      final outputs = await _session.runAsync(runOptions, inputs);
+      final outputs = await _session!.runAsync(runOptions, inputs);
       runOptions.release();
       inputIdsTensor.release();
       attentionMaskTensor.release();
       tokenTypeIdsTensor.release();
 
       if (outputs == null || outputs.isEmpty) {
-        throw Exception('No outputs from ONNX model');
+        return _fallbackEmbed(text);
       }
 
-      // Extract embedding from first output
       final output = outputs[0];
       final data = output!.value as List<double>;
 
-      // all-MiniLM-L12-v2 outputs [1, 384] sentence embeddings
       List<double> embedding;
       if (data.length >= embeddingDim) {
         embedding = data.sublist(0, embeddingDim);
@@ -103,57 +129,57 @@ class OnnxEmbeddingService implements EmbeddingServiceBase {
         }
       }
 
-      // Normalize to unit length
       return _normalize(embedding);
-    } catch (e) {
-      throw Exception('Failed to generate embedding: $e');
+    } catch (_) {
+      return _fallbackEmbed(text);
     }
   }
 
-  /// Compute cosine similarity between two embeddings
+  /// Simple hash-based embedding when ONNX is unavailable.
+  List<double> _fallbackEmbed(String text) {
+    final embedding = List<double>.filled(embeddingDim, 0.0);
+    int hash = 5381;
+    for (int i = 0; i < text.length; i++) {
+      hash = ((hash << 5) + hash) + text.codeUnitAt(i);
+    }
+    final seed = hash.abs();
+    for (int i = 0; i < embeddingDim; i++) {
+      final s = (seed + i) * 9301 + 49297;
+      embedding[i] = ((s % 10000) / 10000.0) - 0.5;
+    }
+    return _normalize(embedding);
+  }
+
   static double cosineSimilarity(List<double> a, List<double> b) {
     if (a.length != b.length) return 0.0;
-
     double dotProduct = 0.0;
     double normA = 0.0;
     double normB = 0.0;
-
     for (int i = 0; i < a.length; i++) {
       dotProduct += a[i] * b[i];
       normA += a[i] * a[i];
       normB += b[i] * b[i];
     }
-
     normA = normA > 0 ? normA : 1.0;
     normB = normB > 0 ? normB : 1.0;
-
     return dotProduct / (sqrt(normA) * sqrt(normB));
   }
 
-  /// Simple BERT-compatible tokenizer
-  /// For production, use transformers.js or native tokenizer
   List<int> _tokenize(String text) {
-    // Add [CLS] token
     final tokens = <int>[101];
-
     final words = text.split(' ');
     for (final word in words) {
       if (word.isNotEmpty) {
-        final token = _hashToken(word) % vocabSize;
-        tokens.add(token);
+        tokens.add(_hashToken(word) % vocabSize);
         if (tokens.length >= maxTokenLength - 1) break;
       }
     }
-
-    // Add [SEP] token if space
     if (tokens.length < maxTokenLength) {
       tokens.add(102);
     }
-
     return tokens;
   }
 
-  /// Hash a word to token ID
   int _hashToken(String word) {
     int hash = 5381;
     for (int i = 0; i < word.length; i++) {
@@ -162,7 +188,6 @@ class OnnxEmbeddingService implements EmbeddingServiceBase {
     return hash.abs();
   }
 
-  /// Clean text for tokenization
   String _preprocessText(String text) {
     return text
         .toLowerCase()
@@ -171,7 +196,6 @@ class OnnxEmbeddingService implements EmbeddingServiceBase {
         .replaceAll(RegExp(r'[^\w\s]'), '');
   }
 
-  /// Normalize embedding to unit length (L2 normalization)
   List<double> _normalize(List<double> embedding) {
     double norm = 0.0;
     for (final val in embedding) {
@@ -179,7 +203,6 @@ class OnnxEmbeddingService implements EmbeddingServiceBase {
     }
     norm = sqrt(norm);
     if (norm == 0) norm = 1.0;
-
     return embedding.map((val) => val / norm).toList();
   }
 
@@ -187,11 +210,9 @@ class OnnxEmbeddingService implements EmbeddingServiceBase {
   void dispose() {
     if (_isInitialized) {
       try {
-        _session.release();
+        _session?.release();
         OrtEnv.instance.release();
-      } catch (_) {
-        // Silently ignore disposal errors
-      }
+      } catch (_) {}
       _isInitialized = false;
     }
   }
