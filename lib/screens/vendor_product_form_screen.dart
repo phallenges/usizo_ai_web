@@ -49,9 +49,8 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     descriptionController =
         TextEditingController(text: product?.description ?? '');
     priceController = TextEditingController(
-      text: product != null
-          ? (product.priceCents / 100).toStringAsFixed(2)
-          : '',
+      text:
+          product != null ? (product.priceCents / 100).toStringAsFixed(2) : '',
     );
     tagsController =
         TextEditingController(text: product?.tags.join(', ') ?? '');
@@ -223,15 +222,17 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Available for online purchase'),
-            subtitle: const Text('Shows "Buy now" when customer is online'),
+            title: const Text('Offer EcoCash order shortcut'),
+            subtitle: const Text(
+                'Shows a quick route to the manual EcoCash order flow'),
             value: canBuyOnline,
             onChanged: (value) => setState(() => canBuyOnline = value),
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: _save,
-            icon: Icon(isEditing ? Icons.save_outlined : Icons.publish_outlined),
+            icon:
+                Icon(isEditing ? Icons.save_outlined : Icons.publish_outlined),
             label: Text(isEditing ? 'Save changes' : 'Publish product'),
           ),
         ],

@@ -24,7 +24,7 @@
   {
     "id": "prod-03",
     "name": "Neem Capsules (60ct)",
-    "vendorId": "vendor-02",
+    "vendorId": "vendor-01",
     "priceCents": 5500,
     "description": "Azadirachta indica capsules for skin health and immune support. Take 1-2 capsules daily with water. Not recommended during pregnancy.",
     "category": "Capsules",
@@ -35,7 +35,7 @@
   {
     "id": "prod-04",
     "name": "Ginger & Turmeric Mix (200g)",
-    "vendorId": "vendor-02",
+    "vendorId": "vendor-01",
     "priceCents": 4200,
     "description": "Fresh-ground ginger and turmeric blend from organic Bulawayo farms. Anti-inflammatory properties. Mix 1 teaspoon into warm water or tea daily.",
     "category": "Herbal blend",
@@ -46,7 +46,7 @@
   {
     "id": "prod-05",
     "name": "Aloe Vera Gel (250ml)",
-    "vendorId": "vendor-03",
+    "vendorId": "vendor-01",
     "priceCents": 3800,
     "description": "Pure aloe vera gel for skin soothing, wound healing, and sunburn relief. Harvested from Chitungwiza-grown plants. Apply topically as needed.",
     "category": "Topical",
@@ -57,7 +57,7 @@
   {
     "id": "prod-06",
     "name": "African Wormwood Bundle (50g)",
-    "vendorId": "vendor-03",
+    "vendorId": "vendor-01",
     "priceCents": 2800,
     "description": "Artemisia afra dried herb bundle, the most widely used traditional remedy in southern Africa. Brew as tea for coughs, colds, and respiratory infections.",
     "category": "Herbal remedy",
@@ -68,7 +68,7 @@
   {
     "id": "prod-07",
     "name": "Wild Garlic Tincture (30ml)",
-    "vendorId": "vendor-04",
+    "vendorId": "vendor-01",
     "priceCents": 4800,
     "description": "Allium sativum tincture from Eastern Highlands wild garlic. Take 5-10 drops in water daily for immune and cardiovascular support.",
     "category": "Tincture",
@@ -79,18 +79,18 @@
   {
     "id": "prod-08",
     "name": "Fever Tree Bark Powder (100g)",
-    "vendorId": "vendor-05",
+    "vendorId": "vendor-01",
     "priceCents": 6200,
     "description": "Cinchona bark powder, traditional remedy for fevers and malaria symptoms. Mix 1/2 teaspoon in warm water. Consult a healer before use.",
     "category": "Herbal powder",
     "tags": ["fever", "malaria", "bark", "antimalarial"],
-    "inStock": false,
+    "inStock": true,
     "canBuyOnline": false
   },
   {
     "id": "prod-09",
     "name": "Lion's Tail Tea (40g)",
-    "vendorId": "vendor-05",
+    "vendorId": "vendor-01",
     "priceCents": 3500,
     "description": "Leonotis leonurus loose-leaf tea. Calming herb traditionally used for anxiety, insomnia, and tension. Steep 1 tablespoon in boiling water for 10 minutes.",
     "category": "Herbal tea",

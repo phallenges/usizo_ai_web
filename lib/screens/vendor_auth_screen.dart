@@ -3,13 +3,16 @@ import 'package:flutter/services.dart';
 
 import '../l10n/localized.dart';
 import '../services/vendor_store.dart';
+import '../services/app_store.dart';
 import 'vendor_dashboard_screen.dart';
 
 /// Vendor sign-up and sign-in.
 class VendorAuthScreen extends StatefulWidget {
-  const VendorAuthScreen({required this.vendorStore, super.key});
+  const VendorAuthScreen(
+      {required this.vendorStore, required this.store, super.key});
 
   final VendorStore vendorStore;
+  final AppStore store;
 
   @override
   State<VendorAuthScreen> createState() => _VendorAuthScreenState();
@@ -25,6 +28,7 @@ class _VendorAuthScreenState extends State<VendorAuthScreen>
   final signUpNameController = TextEditingController();
   final signUpLocationController = TextEditingController();
   final signUpPhoneController = TextEditingController();
+  final signUpEcocashController = TextEditingController();
   final signUpWhatsappController = TextEditingController();
   final signUpDescriptionController = TextEditingController();
   final signUpPinController = TextEditingController();
@@ -47,6 +51,7 @@ class _VendorAuthScreenState extends State<VendorAuthScreen>
     signUpNameController.dispose();
     signUpLocationController.dispose();
     signUpPhoneController.dispose();
+    signUpEcocashController.dispose();
     signUpWhatsappController.dispose();
     signUpDescriptionController.dispose();
     signUpPinController.dispose();
@@ -58,7 +63,8 @@ class _VendorAuthScreenState extends State<VendorAuthScreen>
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => VendorDashboardScreen(vendorStore: widget.vendorStore),
+        builder: (_) => VendorDashboardScreen(
+            vendorStore: widget.vendorStore, store: widget.store),
       ),
     );
   }
@@ -69,7 +75,7 @@ class _VendorAuthScreenState extends State<VendorAuthScreen>
       isSubmitting = true;
     });
 
-    final result = widget.vendorStore.signIn(
+    final result = await widget.vendorStore.signIn(
       phone: signInPhoneController.text,
       pin: signInPinController.text,
     );
@@ -95,10 +101,11 @@ class _VendorAuthScreenState extends State<VendorAuthScreen>
       isSubmitting = true;
     });
 
-    final result = widget.vendorStore.signUp(
+    final result = await widget.vendorStore.signUp(
       businessName: signUpNameController.text,
       location: signUpLocationController.text,
       phone: signUpPhoneController.text,
+      ecocashNumber: signUpEcocashController.text,
       whatsapp: signUpWhatsappController.text,
       description: signUpDescriptionController.text,
       pin: signUpPinController.text,
@@ -141,6 +148,7 @@ class _VendorAuthScreenState extends State<VendorAuthScreen>
             nameController: signUpNameController,
             locationController: signUpLocationController,
             phoneController: signUpPhoneController,
+            ecocashController: signUpEcocashController,
             whatsappController: signUpWhatsappController,
             descriptionController: signUpDescriptionController,
             pinController: signUpPinController,
@@ -186,10 +194,11 @@ class _SignInForm extends StatelessWidget {
         const SizedBox(height: 24),
         TextField(
           controller: phoneController,
-          keyboardType: TextInputType.phone,            decoration: InputDecoration(
-              labelText: context.tr('vendorAuth.phoneNumber'),
-              prefixIcon: const Icon(Icons.phone_outlined),
-            ),
+          keyboardType: TextInputType.phone,
+          decoration: InputDecoration(
+            labelText: context.tr('vendorAuth.phoneNumber'),
+            prefixIcon: const Icon(Icons.phone_outlined),
+          ),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -204,12 +213,15 @@ class _SignInForm extends StatelessWidget {
         ),
         if (error != null) ...[
           const SizedBox(height: 12),
-          Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          Text(error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ],
         const SizedBox(height: 20),
         FilledButton(
           onPressed: isSubmitting ? null : onSubmit,
-          child: Text(isSubmitting ? context.tr('vendorAuth.signingIn') : context.tr('vendorAuth.signIn')),
+          child: Text(isSubmitting
+              ? context.tr('vendorAuth.signingIn')
+              : context.tr('vendorAuth.signIn')),
         ),
       ],
     );
@@ -221,6 +233,7 @@ class _SignUpForm extends StatelessWidget {
     required this.nameController,
     required this.locationController,
     required this.phoneController,
+    required this.ecocashController,
     required this.whatsappController,
     required this.descriptionController,
     required this.pinController,
@@ -233,6 +246,7 @@ class _SignUpForm extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController locationController;
   final TextEditingController phoneController;
+  final TextEditingController ecocashController;
   final TextEditingController whatsappController;
   final TextEditingController descriptionController;
   final TextEditingController pinController;
@@ -257,17 +271,19 @@ class _SignUpForm extends StatelessWidget {
         const SizedBox(height: 24),
         TextField(
           controller: nameController,
-          textCapitalization: TextCapitalization.words,            decoration: InputDecoration(
-              labelText: context.tr('vendorAuth.businessName'),
-              prefixIcon: const Icon(Icons.store_outlined),
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: context.tr('vendorAuth.businessName'),
+            prefixIcon: const Icon(Icons.store_outlined),
           ),
         ),
         const SizedBox(height: 12),
         TextField(
           controller: locationController,
-          textCapitalization: TextCapitalization.words,            decoration: InputDecoration(
-              labelText: context.tr('vendorAuth.location'),
-              prefixIcon: const Icon(Icons.location_on_outlined),
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            labelText: context.tr('vendorAuth.location'),
+            prefixIcon: const Icon(Icons.location_on_outlined),
           ),
         ),
         const SizedBox(height: 12),
@@ -277,6 +293,15 @@ class _SignUpForm extends StatelessWidget {
           decoration: InputDecoration(
             labelText: context.tr('vendorAuth.phoneNumber'),
             prefixIcon: const Icon(Icons.phone_outlined),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: ecocashController,
+          keyboardType: TextInputType.phone,
+          decoration: const InputDecoration(
+            labelText: 'EcoCash number',
+            prefixIcon: Icon(Icons.account_balance_wallet_outlined),
           ),
         ),
         const SizedBox(height: 12),
@@ -323,12 +348,15 @@ class _SignUpForm extends StatelessWidget {
         ),
         if (error != null) ...[
           const SizedBox(height: 12),
-          Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          Text(error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ],
         const SizedBox(height: 20),
         FilledButton(
           onPressed: isSubmitting ? null : onSubmit,
-          child: Text(isSubmitting ? context.tr('vendorAuth.creatingAccount') : context.tr('vendorAuth.createVendorAccount')),
+          child: Text(isSubmitting
+              ? context.tr('vendorAuth.creatingAccount')
+              : context.tr('vendorAuth.createVendorAccount')),
         ),
         const SizedBox(height: 16),
         Card(

@@ -7,6 +7,7 @@ import 'models/remedy.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/app_store.dart';
+import 'services/backend_api.dart';
 import 'services/onnx_embedding_service.dart';
 import 'services/remedy_catalog.dart';
 import 'services/symptom_checker.dart';
@@ -20,9 +21,10 @@ Future<void> main() async {
   runApp(const SplashScreen());
 
   // Load store and remedies (fast, always works)
-  final store = AppStore();
+  final backendApi = BackendApi();
+  final store = AppStore(backendApi: backendApi);
   await store.load();
-  final vendorStore = VendorStore();
+  final vendorStore = VendorStore(backendApi: backendApi);
   await vendorStore.load();
   final remedies = await RemedyCatalog.load();
 

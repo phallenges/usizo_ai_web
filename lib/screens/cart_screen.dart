@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/localized.dart';
-import '../models/order.dart';
 import '../models/vendor.dart';
 import '../services/app_store.dart';
 import '../services/marketplace_catalog.dart';
 import '../services/vendor_store.dart';
+import 'order_confirmation_screen.dart';
 
 /// Shopping cart for marketplace products.
 ///
@@ -36,7 +35,7 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _loadVendors() async {
-    final catalog = await MarketplaceCatalog.load(widget.vendorStore);
+    final catalog = await MarketplaceCatalog.load(widget.vendorStore, widget.store.backendApi);
     if (mounted) {
       setState(() {
         vendors = catalog.vendors;
@@ -44,45 +43,6 @@ class _CartScreenState extends State<CartScreen> {
       });
     }
   }
-
-  Vendor? _vendorFor(String vendorId) {
-    try {
-      return vendors.firstWhere((v) => v.id == vendorId);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> _contactVendorForOrder(Order order, Vendor vendor) async {
-    final phone = vendor.whatsapp.isNotEmpty ? vendor.whatsapp : vendor.phone;
-    if (phone.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No contact number for this vendor.')),
-      );
-      return;
-    }
-
-    final lines = order.items
-        .map((item) => '• ${item.name} (${_formatCents(item.priceCents)})')
-        .join('\n');
-    final message = Uri.encodeComponent(
-      'Hi ${vendor.name}, I would like to order:\n\n'
-      '$lines\n\n'
-      'Total: ${order.totalLabel}\n'
-      'Reference: ${order.reference}',
-    );
-
-    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
-    final whatsappUri = Uri.parse('https://wa.me/$cleanPhone?text=$message');
-
-    if (await canLaunchUrl(whatsappUri)) {
-      await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  String _formatCents(int cents) =>
-      '\$${(cents / 100).toStringAsFixed(2)}';
 
   Future<void> _checkout() async {
     if (widget.store.cart.isEmpty) return;
@@ -115,41 +75,16 @@ class _CartScreenState extends State<CartScreen> {
 
     if (!mounted) return;
 
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.tr('cart.orderPlaced')),
-        content: Text(
-          orders.length == 1
-              ? 'Your order ${orders.first.reference} has been saved. '
-                  'Contact the vendor on WhatsApp to complete payment.'
-              : '${orders.length} orders placed (one per vendor). '
-                  'Contact each vendor on WhatsApp to complete payment.',
+    await Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrderConfirmationScreen(
+          store: widget.store,
+          orders: orders,
+          vendors: vendors,
         ),
-        actions: [
-          if (orders.length == 1)
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(context);
-                final vendor = _vendorFor(orders.first.vendorId);
-                if (vendor != null) {
-                  _contactVendorForOrder(orders.first, vendor);
-                }
-              },
-              child: Text(context.tr('cart.contactVendor')),
-            )
-          else
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(context.tr('cart.done')),
-            ),
-        ],
       ),
     );
-
-    if (orders.length > 1 && mounted) {
-      Navigator.pop(context);
-    }
   }
 
   @override
@@ -204,7 +139,6 @@ class _CartScreenState extends State<CartScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final product = cart[index];
-                    final vendor = _vendorFor(product.vendorId);
                     return Card(
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
@@ -214,10 +148,6 @@ class _CartScreenState extends State<CartScreen> {
                         title: Text(
                           product.name,
                           style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                          vendor?.name ?? 'Vendor',
-                          style: TextStyle(color: Colors.grey[600]),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,

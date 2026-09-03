@@ -12,6 +12,7 @@ _tmp_db = tempfile.mktemp(suffix=".db")
 os.environ["DATABASE_PATH"] = _tmp_db
 
 from app.main import app  # noqa: E402
+from app.database import db, token_digest, utc_now  # noqa: E402
 
 
 @pytest.fixture()
@@ -270,16 +271,12 @@ def test_premium_activation(client):
     r = client.post("/api/devices/register", json={})
     did = r.json()["deviceId"]
 
-    # Build a valid token by replicating the hash logic
-    data = "ABCDEF"
-    secret = "USIZOAI2026"
-    h = 0
-    for ch in data:
-        h = ((h << 5) + h + ord(ch)) & 0xFF
-    for ch in secret:
-        h = ((h << 3) + h + ord(ch)) & 0xFF
-    check = format(h, "02X")
-    token = f"USIZO-{data}{check}"
+    token = "USIZO-SINGLE-USE-TEST-TOKEN"
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO activation_tokens (token_hash, reference, created_at) VALUES (?, ?, ?)",
+            (token_digest(token), "ECO-TEST-001", utc_now()),
+        )
 
     r2 = client.post(f"/api/devices/{did}/subscriptions/activate", json={"token": token})
     assert r2.status_code == 200
@@ -289,6 +286,11 @@ def test_premium_activation(client):
     for _ in range(5):
         rc = client.post(f"/api/devices/{did}/check")
         assert rc.json()["allowed"] is True
+
+    # A paid token cannot be copied to another device.
+    second = client.post("/api/devices/register", json={}).json()["deviceId"]
+    reused = client.post(f"/api/devices/{second}/subscriptions/activate", json={"token": token})
+    assert reused.status_code == 400
 
 
 # ── Orders ──────────────────────────────────────────────────────────
@@ -301,13 +303,14 @@ def test_order_create(client):
     r2 = client.post(
         f"/api/devices/{did}/orders",
         json={
-            "vendorId": "vendor-seeded",
-            "totalCents": 5000,
-            "items": [{"productId": "p1", "name": "Item", "priceCents": 5000, "quantity": 1}],
+            "vendorId": "vendor-01",
+            "totalCents": 1,  # Must be ignored by the server.
+            "items": [{"productId": "prod-01", "name": "forged", "priceCents": 1, "quantity": 1}],
         },
     )
     assert r2.status_code == 200
     assert r2.json()["order"]["id"]
+    assert r2.json()["order"]["totalCents"] == 3100
 
 
 def test_vendor_order_update(client):
@@ -325,6 +328,12 @@ def test_vendor_order_update(client):
     headers = _auth_header(token)
     vid = reg.json()["vendor"]["id"]
 
+    product = client.post(
+        "/api/vendors/me/products",
+        json={"name": "Stuff", "priceCents": 3000},
+        headers=headers,
+    ).json()["product"]
+
     # Create device + order
     r = client.post("/api/devices/register", json={})
     did = r.json()["deviceId"]
@@ -333,7 +342,7 @@ def test_vendor_order_update(client):
         json={
             "vendorId": vid,
             "totalCents": 3000,
-            "items": [{"productId": "x", "name": "Stuff", "priceCents": 3000, "quantity": 1}],
+            "items": [{"productId": product["id"], "quantity": 1}],
         },
     )
     oid = r2.json()["order"]["id"]
@@ -372,6 +381,12 @@ def test_vendor_orders_list(client):
     headers = _auth_header(token)
     vid = reg.json()["vendor"]["id"]
 
+    product = client.post(
+        "/api/vendors/me/products",
+        json={"name": "Tea", "priceCents": 2000},
+        headers=headers,
+    ).json()["product"]
+
     # Create device + order
     r = client.post("/api/devices/register", json={})
     did = r.json()["deviceId"]
@@ -380,7 +395,7 @@ def test_vendor_orders_list(client):
         json={
             "vendorId": vid,
             "totalCents": 2000,
-            "items": [{"productId": "y", "name": "Tea", "priceCents": 2000, "quantity": 1}],
+            "items": [{"productId": product["id"], "quantity": 1}],
         },
     )
 

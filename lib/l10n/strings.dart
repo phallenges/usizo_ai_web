@@ -240,9 +240,9 @@ const Map<String, Map<String, String>> appStrings = {
     'nd': 'Ekhadini — susa',
   },
   'market.buyNow': {
-    'en': 'Buy now',
-    'sn': 'Tenga izvozvi',
-    'nd': 'Thenga manje',
+    'en': 'Start EcoCash order',
+    'sn': 'Tanga odha yeEcoCash',
+    'nd': 'Qalisa i-oda yeEcoCash',
   },
   'market.contactOnWhatsApp': {
     'en': 'Contact on WhatsApp',

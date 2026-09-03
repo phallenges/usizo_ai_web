@@ -27,7 +27,7 @@ class _ActivateScreenState extends State<ActivateScreen> {
     super.dispose();
   }
 
-  void _onActivate() {
+  Future<void> _onActivate() async {
     final token = controller.text.trim().toUpperCase();
 
     if (token.isEmpty) {
@@ -40,7 +40,9 @@ class _ActivateScreenState extends State<ActivateScreen> {
       error = null;
     });
 
-    final success = widget.store.activateWithToken(token);
+    final success = await widget.store.activateWithToken(token);
+
+    if (!mounted) return;
 
     setState(() => isActivating = false);
 
@@ -98,7 +100,9 @@ class _ActivateScreenState extends State<ActivateScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.check_circle_outline),
-            label: Text(isActivating ? context.tr('activate.activating') : context.tr('activate.activate')),
+            label: Text(isActivating
+                ? context.tr('activate.activating')
+                : context.tr('activate.activate')),
           ),
           const SizedBox(height: 24),
           Card(

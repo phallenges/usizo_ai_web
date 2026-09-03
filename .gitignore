@@ -14,6 +14,10 @@ ios/Pods/
 .idea/
 .env.local
 .env.production
+backend/.env
+backend/data/
+__pycache__/
+*.py[cod]
 
 # Android build artifacts
 android/app/.cxx/

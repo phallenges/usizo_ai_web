@@ -97,15 +97,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              VendorDashboardScreen(vendorStore: widget.vendorStore),
+          builder: (_) => VendorDashboardScreen(
+              vendorStore: widget.vendorStore, store: widget.store),
         ),
       );
     } else {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => VendorAuthScreen(vendorStore: widget.vendorStore),
+          builder: (_) => VendorAuthScreen(
+              vendorStore: widget.vendorStore, store: widget.store),
         ),
       );
     }
@@ -182,10 +183,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               Text(
                                 context.tr('profile.usizoPlus'),
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
                               ),
                               const SizedBox(height: 4),
-                              Text(context.tr('profile.unlimitedChecksEnabled')),
+                              Text(
+                                  context.tr('profile.unlimitedChecksEnabled')),
                             ],
                           ),
                         ),
@@ -210,7 +213,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               children: [
                                 Text(
                                   context.tr('profile.unlockPlus'),
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(context.tr('profile.plusDescription')),
@@ -281,7 +285,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       FilledButton(
                         onPressed: _openVendorPortal,
                         child: Text(
-                          signedIn ? context.tr('profile.manageShop') : context.tr('profile.becomeVendor'),
+                          signedIn
+                              ? context.tr('profile.manageShop')
+                              : context.tr('profile.becomeVendor'),
                         ),
                       ),
                     ],
@@ -309,21 +315,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 8),
                   ...orders.take(5).map(
-                    (order) => Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: ListTile(
-                        leading: const Icon(Icons.receipt_long_outlined),
-                        title: Text(order.reference),
-                        subtitle: Text(
-                          '${order.items.length} item(s) · ${order.status.name}',
-                        ),
-                        trailing: Text(
-                          order.totalLabel,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        (order) => Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: const Icon(Icons.receipt_long_outlined),
+                            title: Text(order.reference),
+                            subtitle: Text(
+                              '${order.items.length} item(s) · ${order.status.name}',
+                            ),
+                            trailing: Text(
+                              order.totalLabel,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
                   const SizedBox(height: 4),
                 ],
               );

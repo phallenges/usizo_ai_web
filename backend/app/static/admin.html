@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsizoAI Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #1a1a1a; line-height: 1.5; }
+  :root { --primary: #2563eb; --primary-dark: #1d4ed8; --danger: #dc2626; --success: #16a34a; --warning: #f59e0b; --border: #e5e7eb; --bg: #ffffff; --bg2: #f9fafb; }
+  a { color: var(--primary); text-decoration: none; }
+  .login-screen { max-width: 400px; margin: 100px auto; padding: 40px; background: var(--bg); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .login-screen h1 { font-size: 24px; margin-bottom: 4px; }
+  .login-screen p { color: #6b7280; margin-bottom: 24px; font-size: 14px; }
+  .hidden { display: none !important; }
+  label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: #374151; }
+  input, select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+  input:focus, select:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
+  button { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { background: #15803d; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: #374151; }
+  .btn-outline:hover { background: var(--bg2); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .error-msg { color: var(--danger); font-size: 13px; margin-bottom: 12px; }
+
+  /* Layout */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: #1e293b; color: #94a3b8; padding: 20px 0; flex-shrink: 0; }
+  .sidebar h2 { color: white; font-size: 16px; padding: 0 20px 16px; border-bottom: 1px solid #334155; margin-bottom: 8px; }
+  .sidebar button { display: block; width: 100%; text-align: left; padding: 10px 20px; background: none; border: none; color: #94a3b8; font-size: 14px; cursor: pointer; }
+  .sidebar button:hover, .sidebar button.active { background: #334155; color: white; }
+  .main { flex: 1; padding: 24px 32px; overflow-y: auto; }
+  .main h1 { font-size: 22px; margin-bottom: 20px; }
+
+  /* Cards */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .metric-card { background: var(--bg); border-radius: 10px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .metric-card .value { font-size: 28px; font-weight: 700; color: var(--primary); }
+  .metric-card .label { font-size: 13px; color: #6b7280; margin-top: 2px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; background: var(--bg); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 16px; }
+  th { background: var(--bg2); text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 10px 14px; border-top: 1px solid var(--border); font-size: 13px; }
+  tr:hover td { background: #f9fafb; }
+
+  /* Status badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .badge-proof { background: #dbeafe; color: #1e40af; }
+  .badge-confirmed { background: #d1fae5; color: #065f46; }
+  .badge-delivered { background: #d1fae5; color: #065f46; }
+  .badge-cancelled { background: #fee2e2; color: #991b1b; }
+  .badge-rejected { background: #fee2e2; color: #991b1b; }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .toolbar input, .toolbar select { width: auto; margin-bottom: 0; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--bg); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.16); }
+  .modal h2 { font-size: 18px; margin-bottom: 12px; }
+
+  /* Loading */
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #e5e7eb; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { text-align: center; padding: 40px; color: #9ca3af; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login" class="login-screen">
+  <h1>UsizoAI Admin</h1>
+  <p>Operations dashboard</p>
+  <div id="login-error" class="error-msg hidden"></div>
+  <label for="token-input">Admin Token</label>
+  <input type="password" id="token-input" placeholder="Enter admin token" autofocus>
+  <button class="btn-primary" style="width:100%" onclick="login()">Sign in</button>
+</div>
+
+<!-- App -->
+<div id="app" class="app hidden">
+  <nav class="sidebar">
+    <h2>UsizoAI Admin</h2>
+    <button class="active" onclick="showTab('dashboard')">Dashboard</button>
+    <button onclick="showTab('orders')">Orders</button>
+    <button onclick="showTab('tokens')">Plus Tokens</button>
+    <button onclick="showTab('reviews')">Reviews</button>
+    <button onclick="showTab('vendors')">Vendors</button>
+    <button onclick="showTab('audit')">Audit Log</button>
+    <button onclick="logout()" style="margin-top:24px; color:#ef4444;">Sign out</button>
+  </nav>
+
+  <div class="main">
+    <!-- Dashboard -->
+    <div id="tab-dashboard">
+      <h1>Dashboard</h1>
+      <div id="metrics" class="metrics"></div>
+    </div>
+
+    <!-- Orders -->
+    <div id="tab-orders" class="hidden">
+      <h1>Orders</h1>
+      <div class="toolbar">
+        <input type="text" id="order-search" placeholder="Search by reference or ID...">
+        <select id="order-status-filter">
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="payment_proof_submitted">Payment proof submitted</option>
+          <option value="payment_rejected">Payment rejected</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="delivered">Delivered</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <button class="btn-primary" onclick="loadOrders()">Search</button>
+      </div>
+      <div id="orders-table"></div>
+    </div>
+
+    <!-- Tokens -->
+    <div id="tab-tokens" class="hidden">
+      <h1>Plus Activation Tokens</h1>
+      <div class="toolbar">
+        <input type="text" id="token-ref" placeholder="EcoCash reference">
+        <button class="btn-primary" onclick="issueToken()">Issue Token</button>
+      </div>
+      <div id="token-result" class="hidden" style="margin-bottom:16px;"></div>
+      <p style="color:#6b7280; font-size:13px;">Enter the EcoCash transaction reference to issue a single-use Plus activation token.</p>
+    </div>
+
+    <!-- Reviews -->
+    <div id="tab-reviews" class="hidden">
+      <h1>Reviews</h1>
+      <p style="color:#6b7280; font-size:13px; margin-bottom:16px;">Moderate customer reviews. Load from vendor endpoints.</p>
+      <div id="reviews-table"></div>
+    </div>
+
+    <!-- Vendors -->
+    <div id="tab-vendors" class="hidden">
+      <h1>Vendors</h1>
+      <div id="vendors-table"></div>
+    </div>
+
+    <!-- Audit -->
+    <div id="tab-audit" class="hidden">
+      <h1>Audit Log</h1>
+      <div id="audit-table"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Order Detail Modal -->
+<div id="order-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div id="order-modal-content"></div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let token = '';
+
+async function api(path, opts = {}) {
+  const headers = { 'Authorization': `Bearer ${token}`, ...opts.headers };
+  if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+  const r = await fetch(`${API}${path}`, { ...opts, headers });
+  if (r.status === 401 || r.status === 403) { logout(); throw new Error('Auth expired'); }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || r.statusText); }
+  return r.json();
+}
+
+function logout() {
+  token = '';
+  document.getElementById('login').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+  localStorage.removeItem('admin_token');
+}
+
+async function login() {
+  const input = document.getElementById('token-input');
+  token = input.value.trim();
+  if (!token) return;
+  try {
+    await api('/api/admin/login', { method: 'POST', body: { token } });
+    document.getElementById('login').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    localStorage.setItem('admin_token', token);
+    loadDashboard();
+  } catch (e) {
+    document.getElementById('login-error').textContent = e.message;
+    document.getElementById('login-error').classList.remove('hidden');
+  }
+}
+
+document.getElementById('token-input').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+
+function showTab(name) {
+  document.querySelectorAll('.main > div').forEach(d => d.classList.add('hidden'));
+  document.getElementById(`tab-${name}`).classList.remove('hidden');
+  document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'orders') loadOrders();
+  if (name === 'vendors') loadVendors();
+  if (name === 'audit') loadAudit();
+  if (name === 'reviews') loadReviews();
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────
+
+async function loadDashboard() {
+  try {
+    const m = await api('/api/admin/metrics');
+    document.getElementById('metrics').innerHTML = `
+      <div class="metric-card"><div class="value">${m.totalDevices}</div><div class="label">Total devices</div></div>
+      <div class="metric-card"><div class="value">${m.premiumDevices}</div><div class="label">Premium devices</div></div>
+      <div class="metric-card"><div class="value">${m.totalOrders}</div><div class="label">Total orders</div></div>
+      <div class="metric-card"><div class="value">${m.pendingPaymentProofs}</div><div class="label">Pending payment proofs</div></div>
+      <div class="metric-card"><div class="value">${m.pendingActivations}</div><div class="label">Pending activations</div></div>
+      <div class="metric-card"><div class="value">${m.vendors}</div><div class="label">Vendors</div></div>
+      <div class="metric-card"><div class="value">${m.products}</div><div class="label">Products</div></div>
+      <div class="metric-card"><div class="value">${m.reviews}</div><div class="label">Reviews</div></div>
+    `;
+  } catch (e) { console.error(e); }
+}
+
+// ── Orders ───────────────────────────────────────────────────────────
+
+async function loadOrders() {
+  const q = document.getElementById('order-search').value.trim();
+  const status = document.getElementById('order-status-filter').value;
+  let url = '/api/admin/orders?limit=100';
+  if (q) url += `&q=${encodeURIComponent(q)}`;
+  if (status) url += `&status=${encodeURIComponent(status)}`;
+  try {
+    const data = await api(url);
+    if (!data.orders.length) {
+      document.getElementById('orders-table').innerHTML = '<div class="empty">No orders found.</div>';
+      return;
+    }
+    document.getElementById('orders-table').innerHTML = `
+      <table>
+        <thead><tr><th>Order</th><th>Reference</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
+        <tbody>${data.orders.map(o => `
+          <tr>
+            <td style="font-family:monospace;font-size:12px">${o.id}</td>
+            <td>${o.reference}</td>
+            <td>$${(o.totalCents/100).toFixed(2)}</td>
+            <td><span class="badge badge-${o.status === 'payment_proof_submitted' ? 'proof' : o.status}">${o.status}</span></td>
+            <td style="font-size:12px">${new Date(o.createdAt).toLocaleDateString()}</td>
+            <td><button class="btn-outline btn-sm" onclick='showOrder(${JSON.stringify(o).replace(/'/g,"&#39;")})'>View</button></td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    `;
+  } catch (e) { console.error(e); }
+}
+
+function showOrder(order) {
+  const items = order.items.map(i => `${i.name} x${i.quantity} — $${(i.priceCents*i.quantity/100).toFixed(2)}`).join('<br>');
+  document.getElementById('order-modal-content').innerHTML = `
+    <h2>Order ${order.id}</h2>
+    <p><strong>Reference:</strong> ${order.reference}</p>
+    <p><strong>Status:</strong> <span class="badge badge-${order.status === 'payment_proof_submitted' ? 'proof' : order.status}">${order.status}</span></p>
+    <p><strong>Total:</strong> $${(order.totalCents/100).toFixed(2)}</p>
+    <hr style="margin:12px 0;border:none;border-top:1px solid #e5e7eb">
+    <p><strong>Items:</strong></p>
+    <p style="font-size:13px">${items}</p>
+    ${order.hasPaymentProof ? '<p style="color:var(--success);margin-top:8px">&#10003; Payment proof uploaded</p>' : ''}
+    ${order.paymentRejectionReason ? `<p style="color:var(--danger);margin-top:4px">Rejection reason: ${order.paymentRejectionReason}</p>` : ''}
+    <div style="margin-top:16px;display:flex;gap:8px">
+      ${order.status === 'payment_proof_submitted' ? `
+        <button class="btn-success btn-sm" onclick="reviewPayment('${order.id}','confirmed')">Approve payment</button>
+        <button class="btn-danger btn-sm" onclick="rejectPayment('${order.id}')">Reject</button>
+      ` : ''}
+      <button class="btn-outline btn-sm" onclick="closeModal()">Close</button>
+    </div>
+  `;
+  document.getElementById('order-modal').classList.remove('hidden');
+}
+
+function closeModal() { document.getElementById('order-modal').classList.add('hidden'); }
+
+async function reviewPayment(orderId, status) {
+  try {
+    await api(`/api/vendors/me/orders/${orderId}/payment-proof`, { method: 'PATCH', body: { status, rejectionReason: '' } });
+    closeModal(); loadOrders();
+  } catch (e) { alert(e.message); }
+}
+
+async function rejectPayment(orderId) {
+  const reason = prompt('Reason for rejection:');
+  if (reason === null) return;
+  try {
+    await api(`/api/vendors/me/orders/${orderId}/payment-proof`, { method: 'PATCH', body: { status: 'payment_rejected', rejectionReason: reason } });
+    closeModal(); loadOrders();
+  } catch (e) { alert(e.message); }
+}
+
+// ── Tokens ───────────────────────────────────────────────────────────
+
+async function issueToken() {
+  const ref = document.getElementById('token-ref').value.trim();
+  if (!ref) return;
+  try {
+    const data = await api('/api/admin/activation-tokens', { method: 'POST', body: { reference: ref } });
+    document.getElementById('token-result').classList.remove('hidden');
+    document.getElementById('token-result').innerHTML = `
+      <div style="background:#d1fae5;padding:16px;border-radius:8px">
+        <p style="font-weight:600;color:#065f46">Token issued</p>
+        <p style="font-family:monospace;font-size:16px;margin-top:8px;user-select:all">${data.token}</p>
+        <p style="font-size:12px;color:#065f46;margin-top:4px">Reference: ${data.reference}</p>
+        <p style="font-size:12px;color:#991b1b;margin-top:4px">Copy this token now — it cannot be shown again.</p>
+      </div>
+    `;
+    document.getElementById('token-ref').value = '';
+  } catch (e) { alert(e.message); }
+}
+
+// ── Vendors ──────────────────────────────────────────────────────────
+
+async function loadVendors() {
+  try {
+    const data = await api('/api/admin/vendors');
+    document.getElementById('vendors-table').innerHTML = `
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Location</th><th>Phone</th><th>Rating</th><th>Reviews</th></tr></thead>
+        <tbody>${data.vendors.map(v => `
+          <tr>
+            <td style="font-family:monospace;font-size:12px">${v.id}</td>
+            <td>${v.name}</td>
+            <td>${v.location}</td>
+            <td>${v.phone}</td>
+            <td>${v.rating > 0 ? v.rating.toFixed(1) + ' ★' : 'New'}</td>
+            <td>${v.reviewCount}</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    `;
+  } catch (e) { console.error(e); }
+}
+
+// ── Reviews ──────────────────────────────────────────────────────────
+
+async function loadReviews() {
+  try {
+    const vendors = await api('/api/admin/vendors');
+    let allReviews = [];
+    for (const v of vendors.vendors) {
+      const data = await api(`/api/vendors/${v.id}/reviews`);
+      allReviews.push(...data.reviews.map(r => ({ ...r, vendorName: v.name })));
+    }
+    if (!allReviews.length) {
+      document.getElementById('reviews-table').innerHTML = '<div class="empty">No reviews yet.</div>';
+      return;
+    }
+    document.getElementById('reviews-table').innerHTML = `
+      <table>
+        <thead><tr><th>Vendor</th><th>Rating</th><th>Comment</th><th>Device</th><th>Date</th><th></th></tr></thead>
+        <tbody>${allReviews.map(r => `
+          <tr>
+            <td>${r.vendorName}</td>
+            <td>${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td>
+            <td>${r.comment || '<em>—</em>'}</td>
+            <td style="font-family:monospace;font-size:11px">${r.deviceId}</td>
+            <td style="font-size:12px">${new Date(r.createdAt).toLocaleDateString()}</td>
+            <td><button class="btn-danger btn-sm" onclick="deleteReview('${r.id}','${r.vendorName}')">Delete</button></td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    `;
+  } catch (e) { console.error(e); }
+}
+
+async function deleteReview(id, vendor) {
+  if (!confirm(`Delete this review from ${vendor}?`)) return;
+  try {
+    await api(`/api/admin/reviews/${id}`, { method: 'DELETE' });
+    loadReviews();
+  } catch (e) { alert(e.message); }
+}
+
+// ── Audit ────────────────────────────────────────────────────────────
+
+async function loadAudit() {
+  try {
+    const data = await api('/api/admin/audit?limit=200');
+    if (!data.events.length) {
+      document.getElementById('audit-table').innerHTML = '<div class="empty">No audit events yet.</div>';
+      return;
+    }
+    document.getElementById('audit-table').innerHTML = `
+      <table>
+        <thead><tr><th>Time</th><th>Action</th><th>Actor</th><th>Target</th><th>Details</th></tr></thead>
+        <tbody>${data.events.map(e => `
+          <tr>
+            <td style="font-size:12px;white-space:nowrap">${new Date(e.createdAt).toLocaleString()}</td>
+            <td><span style="font-weight:600">${e.action}</span></td>
+            <td>${e.actorType}${e.actorId ? ': ' + e.actorId : ''}</td>
+            <td>${e.targetType}${e.targetId ? ': ' + e.targetId : ''}</td>
+            <td style="font-size:12px;font-family:monospace">${JSON.stringify(e.details)}</td>
+          </tr>
+        `).join('')}</tbody>
+      </table>
+    `;
+  } catch (e) { console.error(e); }
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+const saved = localStorage.getItem('admin_token');
+if (saved) { token = saved; document.getElementById('login').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); loadDashboard(); }
+</script>
+</body>
+</html>

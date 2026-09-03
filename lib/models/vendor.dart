@@ -6,6 +6,7 @@ class Vendor {
     required this.location,
     this.description = '',
     this.phone = '',
+    this.ecocashNumber = '',
     this.whatsapp = '',
     this.rating = 0.0,
     this.reviewCount = 0,
@@ -20,6 +21,9 @@ class Vendor {
   final String location;
   final String description;
   final String phone;
+
+  /// The number that buyers use for direct EcoCash payments.
+  final String ecocashNumber;
   final String whatsapp;
   final double rating;
   final int reviewCount;
@@ -38,6 +42,7 @@ class Vendor {
     String? location,
     String? description,
     String? phone,
+    String? ecocashNumber,
     String? whatsapp,
     double? rating,
     int? reviewCount,
@@ -50,6 +55,7 @@ class Vendor {
       location: location ?? this.location,
       description: description ?? this.description,
       phone: phone ?? this.phone,
+      ecocashNumber: ecocashNumber ?? this.ecocashNumber,
       whatsapp: whatsapp ?? this.whatsapp,
       rating: rating ?? this.rating,
       reviewCount: reviewCount ?? this.reviewCount,
@@ -65,6 +71,7 @@ class Vendor {
       location: json['location'] as String? ?? '',
       description: json['description'] as String? ?? '',
       phone: json['phone'] as String? ?? '',
+      ecocashNumber: json['ecocashNumber'] as String? ?? '',
       whatsapp: json['whatsapp'] as String? ?? '',
       rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
       reviewCount: (json['reviewCount'] as num?)?.toInt() ?? 0,
@@ -79,6 +86,7 @@ class Vendor {
         'location': location,
         'description': description,
         'phone': phone,
+        'ecocashNumber': ecocashNumber,
         'whatsapp': whatsapp,
         'rating': rating,
         'reviewCount': reviewCount,

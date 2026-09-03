@@ -1,24 +1,34 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/order.dart';
 import '../models/product.dart';
 import '../models/vendor.dart';
+import 'backend_api.dart';
 
-/// Local vendor accounts, sessions, and product listings.
+/// Vendor accounts, sessions, and product listings.
 ///
-/// Vendors sign up on-device. Products they post are merged into the
-/// marketplace alongside bundled catalog data.
+/// Vendors sign in through the backend API when configured,
+/// falling back to on-device local accounts when offline.
 class VendorStore extends ChangeNotifier {
+  VendorStore({BackendApi? backendApi}) : _backendApi = backendApi;
+
+  final BackendApi? _backendApi;
   final List<Vendor> _vendors = [];
   final List<Product> _products = [];
+  final List<Order> _orders = [];
   final Map<String, String> _pinsByVendorId = {};
   String? _sessionVendorId;
+  String? _backendToken;
 
   List<Vendor> get registeredVendors => List.unmodifiable(_vendors);
   List<Product> get vendorProducts => List.unmodifiable(_products);
+  List<Order> get currentVendorOrders =>
+      _orders.where((o) => o.vendorId == _sessionVendorId).toList();
   bool get isSignedIn => _sessionVendorId != null;
 
   Vendor? get currentVendor {
@@ -72,10 +82,42 @@ class VendorStore extends ChangeNotifier {
       }
 
       _sessionVendorId = prefs.getString('vendor_session');
+      _backendToken = prefs.getString('vendor_backend_token');
     } catch (_) {
       // Vendor portal remains usable with empty state.
     }
+
+    // Sync with backend if we have a token (non-blocking).
+    if (_backendToken != null) {
+      unawaited(_syncFromBackend());
+    }
     notifyListeners();
+  }
+
+  /// Pull vendor profile and products from the backend.
+  Future<void> _syncFromBackend() async {
+    if (_backendApi == null || !_backendApi.isConfigured) return;
+    try {
+      final vendor = await _backendApi.fetchVendorProfile();
+      if (vendor != null) {
+        final index = _vendors.indexWhere((v) => v.id == vendor.id);
+        if (index >= 0) {
+          _vendors[index] = vendor;
+        } else {
+          _vendors.add(vendor);
+        }
+        _sessionVendorId = vendor.id;
+      }
+      final products = await _backendApi.fetchVendorProducts();
+      if (products.isNotEmpty) {
+        // Replace local products with server state.
+        _products
+          ..removeWhere((p) => p.vendorId == _sessionVendorId)
+          ..addAll(products);
+      }
+      notifyListeners();
+      _persist();
+    } catch (_) {}
   }
 
   static String normalizePhone(String phone) =>
@@ -93,24 +135,53 @@ class VendorStore extends ChangeNotifier {
   }
 
   /// Register a new vendor account. Returns null on success or an error message.
-  String? signUp({
+  Future<String?> signUp({
     required String businessName,
     required String location,
     required String phone,
+    required String ecocashNumber,
     required String pin,
     String whatsapp = '',
     String description = '',
-  }) {
+  }) async {
     final trimmedName = businessName.trim();
     final trimmedLocation = location.trim();
     final trimmedPhone = phone.trim();
+    final trimmedEcocashNumber = ecocashNumber.trim();
     final trimmedPin = pin.trim();
 
     if (trimmedName.isEmpty) return 'Enter your business name.';
     if (trimmedLocation.isEmpty) return 'Enter your location.';
     if (trimmedPhone.isEmpty) return 'Enter your phone number.';
+    if (trimmedEcocashNumber.isEmpty) return 'Enter your EcoCash number.';
     if (trimmedPin.length < 4) return 'PIN must be at least 4 digits.';
 
+    // Try backend API first.
+    if (_backendApi != null && _backendApi.isConfigured) {
+      final token = await _backendApi.vendorRegister(
+        businessName: trimmedName,
+        location: trimmedLocation,
+        phone: trimmedPhone,
+        ecocashNumber: trimmedEcocashNumber,
+        pin: trimmedPin,
+        whatsapp: whatsapp,
+        description: description,
+      );
+      if (token != null) {
+        _backendToken = token;
+        final vendor = await _backendApi.fetchVendorProfile();
+        if (vendor != null) {
+          _vendors.add(vendor);
+          _sessionVendorId = vendor.id;
+          _persist();
+          _saveBackendToken();
+          notifyListeners();
+          return null;
+        }
+      }
+    }
+
+    // Fallback: local registration.
     if (vendorByPhone(trimmedPhone) != null) {
       return 'A vendor with this phone number is already registered.';
     }
@@ -121,6 +192,7 @@ class VendorStore extends ChangeNotifier {
       location: trimmedLocation,
       description: description.trim(),
       phone: trimmedPhone,
+      ecocashNumber: trimmedEcocashNumber,
       whatsapp: whatsapp.trim().isNotEmpty ? whatsapp.trim() : trimmedPhone,
     );
 
@@ -133,7 +205,32 @@ class VendorStore extends ChangeNotifier {
   }
 
   /// Sign in with phone + PIN. Returns null on success or an error message.
-  String? signIn({required String phone, required String pin}) {
+  Future<String?> signIn({required String phone, required String pin}) async {
+    // Try backend API first.
+    if (_backendApi != null && _backendApi.isConfigured) {
+      final token = await _backendApi.vendorLogin(phone: phone, pin: pin);
+      if (token != null) {
+        _backendToken = token;
+        final vendor = await _backendApi.fetchVendorProfile();
+        if (vendor != null) {
+          final index = _vendors.indexWhere((v) => v.id == vendor.id);
+          if (index >= 0) {
+            _vendors[index] = vendor;
+          } else {
+            _vendors.add(vendor);
+          }
+          _sessionVendorId = vendor.id;
+          _saveBackendToken();
+          notifyListeners();
+          _persist();
+          // Fetch products from backend.
+          unawaited(_syncFromBackend());
+          return null;
+        }
+      }
+    }
+
+    // Fallback: local sign-in.
     final vendor = vendorByPhone(phone);
     if (vendor == null) return 'No vendor account found for this phone number.';
     if (_pinsByVendorId[vendor.id] != pin.trim()) {
@@ -148,8 +245,21 @@ class VendorStore extends ChangeNotifier {
 
   void signOut() {
     _sessionVendorId = null;
+    _backendToken = null;
+    _backendApi?.vendorSignOut();
     notifyListeners();
     _persist();
+  }
+
+  Future<void> _saveBackendToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_backendToken != null) {
+        await prefs.setString('vendor_backend_token', _backendToken!);
+      } else {
+        await prefs.remove('vendor_backend_token');
+      }
+    } catch (_) {}
   }
 
   void updateProfile(Vendor updated) {
@@ -213,6 +323,91 @@ class VendorStore extends ChangeNotifier {
     _products[index] = product.copyWith(inStock: !product.inStock);
     notifyListeners();
     _persist();
+  }
+
+  // ── Orders ───────────────────────────────────────────────────────
+
+  /// Fetch orders from the backend for the signed-in vendor.
+  Future<void> fetchOrders() async {
+    if (_backendApi == null || !_backendApi.isConfigured) return;
+    try {
+      final orders = await _backendApi.fetchVendorOrders();
+      // Replace local orders with server state.
+      final vendorOrders = orders.where((o) => o.vendorId == _sessionVendorId).toList();
+      final nonVendorOrders = _orders.where((o) => o.vendorId != _sessionVendorId).toList();
+      _orders
+        ..clear()
+        ..addAll(nonVendorOrders)
+        ..addAll(vendorOrders);
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Confirm an order with vendor details (final price, delivery, instructions).
+  Future<bool> confirmOrder({
+    required String orderId,
+    required int finalPriceCents,
+    required String deliveryMethod,
+    String deliveryArea = '',
+    String collectionPoint = '',
+    String turnaroundTime = '',
+    String paymentInstructions = '',
+    String deliveryInstructions = '',
+  }) async {
+    if (_backendApi == null || !_backendApi.isConfigured) return false;
+    try {
+      final token = await _backendApi.getVendorToken();
+      if (token == null) return false;
+      final r = await _backendApi.confirmOrder(
+        orderId: orderId,
+        action: 'confirm',
+        finalPriceCents: finalPriceCents,
+        deliveryMethod: deliveryMethod,
+        deliveryArea: deliveryArea,
+        collectionPoint: collectionPoint,
+        turnaroundTime: turnaroundTime,
+        paymentInstructions: paymentInstructions,
+        deliveryInstructions: deliveryInstructions,
+      );
+      if (r != null) {
+        // Update local order.
+        final index = _orders.indexWhere((o) => o.id == orderId);
+        if (index >= 0) {
+          _orders[index] = r;
+          notifyListeners();
+        }
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Decline an order with a reason.
+  Future<bool> declineOrder({
+    required String orderId,
+    required String reason,
+  }) async {
+    if (_backendApi == null || !_backendApi.isConfigured) return false;
+    try {
+      final r = await _backendApi.confirmOrder(
+        orderId: orderId,
+        action: 'decline',
+        declineReason: reason,
+      );
+      if (r != null) {
+        final index = _orders.indexWhere((o) => o.id == orderId);
+        if (index >= 0) {
+          _orders[index] = r;
+          notifyListeners();
+        }
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _persist() async {

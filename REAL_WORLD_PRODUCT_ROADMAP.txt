@@ -1,0 +1,149 @@
+USIZOAI: PATH TO A REAL-WORLD PRODUCT
+========================================
+
+1. DEFINE THE FIRST LAUNCH
+--------------------------
+
+Zimbabwean adults who want educational symptom guidance plus access
+to vetted herbal-product vendors.
+
+
+- Which country launches first - Zimbabwe.
+- UsizoAI sells products for herb vendor one in a city. 
+
+vendors receive EcoCash payments directly and we get a screenshot of the confirmation message via the user's upload. 
+Plus price - $1.50 which has to cap at the end of month.
+
+
+THE BACKEND
+--------------------------------------------
+
+Backend API behind https.
+
+Move these into the backend:
+
+- Customer accounts and sign-in.
+- Orders and fulfilment status.
+- Plus subscriptions and activation records.
+- Reviews and moderation.
+- Audit events: who changed a product, order, price, or subscription.
+
+Make the backend top-tier.
+
+
+BUILD THE ADMIN DASHBOARD
+----------------------------
+
+Build a browser-based admin portal for the operations team. It should allow
+the team to:
+
+- Verify EcoCash payments.
+- Issue one-time Plus activation tokens.
+- Search customers and orders.
+- Moderate reviews and health content.
+- Handle refunds, complaints, and safety reports.
+- See operational metrics.
+
+This dashboard is where the team runs the startup day to day.
+
+
+BUILD THE VENDOR WORKFLOW
+----------------------------
+
+Vendors need a real, secure portal instead of on-device local accounts.
+
+A vendor should be able to:
+
+- Set a verified EcoCash recipient number.
+- Create or update products.
+- Set stock, pricing, delivery areas, collection points, and turnaround times.
+- Receive an order request.
+- Confirm or decline it.
+- Share payment and delivery instructions.
+- Mark the order confirmed, delivered, or cancelled.
+
+Keep vendor onboarding manual at first. Vet every vendor before it appears
+publicly.
+
+FINISH THE ECOCASH ORDER FLOW
+--------------------------------
+
+For the current manual payment method, the customer order flow should be:
+
+1. Customer adds products from one vendor.
+2. UsizoAI creates a separate pending order for vendor.
+3. Customer contacts the vendor through the app.
+4. Vendor confirms stock, final price, delivery/collection, and their EcoCash
+   details.
+5. Customer pays the vendor via EcoCash, using the order reference.
+6. Customer sends proof/reference on UsizoAI.
+7. Vendor confirms payment and fulfils the order.
+8. Customer can view the live status in UsizoAI.
+
+Never label an order "paid" solely because the customer pressed a button.
+The vendor or a verified payment webhook must confirm it with us also having confirmation uploaded from the user.
+
+For Plus, keep the initial model:
+
+1. Customer pays UsizoAI's EcoCash number.
+2. The team verifies the payment.
+3. An admin issues a single-use activation token.
+4. The app redeems it against the backend.
+
+Later, replace manual verification with an approved EcoCash/payment-provider
+integration when updated it is now possible.
+
+
+7. CONNECT THE FLUTTER APP TO THE BACKEND
+-----------------------------------------
+
+The app must stop treating local storage as authoritative.
+
+Implement:
+
+- Customer authentication.
+- Secure token storage.
+- API-based catalog loading with offline cache.
+- API-based vendor login and product management.
+- Server-created orders.
+- Live/synchronised order history.
+- Backend subscription state.
+- Retry queues for poor connectivity.
+- Useful offline states instead of silent failures.
+
+Production mobile builds need the deployed API URL, for example:
+
+flutter build appbundle --dart-define=USIZO_API_BASE_URL=https://api.usizo.ai
+
+
+8. BUILD PRIVACY AND SECURITY PROPERLY
+--------------------------------------
+
+Before public launch:
+
+- Publish a privacy policy, terms, refund policy, health disclaimer, and
+  vendor terms.
+- Collect only data that is actually needed.
+- Encrypt data in transit with HTTPS.
+- Store passwords securely; never store raw PINs or payment credentials.
+- Use secure secrets management for production keys.
+- Set database backups, restore testing, monitoring, and alerts.
+- Add rate limiting, account lockouts, audit logs, and access controls.
+- Create procedures for lost devices, account deletion, data-export requests,
+  fraud, and safety incidents.
+
+
+ PREPARE PRODUCTION OPERATIONS
+---------------------------------
+
+Set up:
+
+- Domain, HTTPS, production database, backups, and monitoring.
+- Error reporting and uptime alerts.
+- Customer-support phone/WhatsApp.
+- Vendor-support process.
+- Content-review process.
+- Refund/dispute process.
+- Incident response for incorrect health content or dangerous product reports.
+- App-store accounts, screenshots, privacy disclosures, and release signing
+  keys.
