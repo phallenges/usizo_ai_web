@@ -51,17 +51,26 @@ class VendorDashboardScreen extends StatelessWidget {
     store.reviewPaymentProof(order.id, approved: false, reason: reason);
   }
 
-  void _confirmOrder(BuildContext context, Order order, {required String action}) {
+  void _confirmOrder(BuildContext context, Order order,
+      {required String action}) {
     final priceController = TextEditingController(
-      text: order.totalCents > 0 ? (order.totalCents / 100).toStringAsFixed(2) : '',
+      text: order.totalCents > 0
+          ? (order.totalCents / 100).toStringAsFixed(2)
+          : '',
     );
-    final deliveryAreaController = TextEditingController(text: order.deliveryArea);
-    final collectionPointController = TextEditingController(text: order.collectionPoint);
-    final turnaroundController = TextEditingController(text: order.turnaroundTime);
-    final paymentInstructionsController = TextEditingController(text: order.paymentInstructions);
-    final deliveryInstructionsController = TextEditingController(text: order.deliveryInstructions);
+    final deliveryAreaController =
+        TextEditingController(text: order.deliveryArea);
+    final collectionPointController =
+        TextEditingController(text: order.collectionPoint);
+    final turnaroundController =
+        TextEditingController(text: order.turnaroundTime);
+    final paymentInstructionsController =
+        TextEditingController(text: order.paymentInstructions);
+    final deliveryInstructionsController =
+        TextEditingController(text: order.deliveryInstructions);
     final notesController = TextEditingController(text: order.vendorNotes);
-    String deliveryMethod = order.deliveryMethod.isEmpty ? 'delivery' : order.deliveryMethod;
+    String deliveryMethod =
+        order.deliveryMethod.isEmpty ? 'delivery' : order.deliveryMethod;
 
     if (action == 'decline') {
       showDialog<String>(
@@ -77,7 +86,9 @@ class VendorDashboardScreen extends StatelessWidget {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () => Navigator.pop(ctx, notesController.text),
@@ -89,9 +100,15 @@ class VendorDashboardScreen extends StatelessWidget {
         if (reason != null) {
           vendorStore.declineOrder(orderId: order.id, reason: reason);
         }
-        _disposeControllers([priceController, deliveryAreaController,
-          collectionPointController, turnaroundController,
-          paymentInstructionsController, deliveryInstructionsController, notesController]);
+        _disposeControllers([
+          priceController,
+          deliveryAreaController,
+          collectionPointController,
+          turnaroundController,
+          paymentInstructionsController,
+          deliveryInstructionsController,
+          notesController
+        ]);
       });
       return;
     }
@@ -117,10 +134,13 @@ class VendorDashboardScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: deliveryMethod,
-                  decoration: const InputDecoration(labelText: 'Delivery method'),
+                  decoration:
+                      const InputDecoration(labelText: 'Delivery method'),
                   items: const [
-                    DropdownMenuItem(value: 'delivery', child: Text('Delivery')),
-                    DropdownMenuItem(value: 'collection', child: Text('Collection')),
+                    DropdownMenuItem(
+                        value: 'delivery', child: Text('Delivery')),
+                    DropdownMenuItem(
+                        value: 'collection', child: Text('Collection')),
                   ],
                   onChanged: (v) {
                     if (v != null) setDialogState(() => deliveryMethod = v);
@@ -130,12 +150,14 @@ class VendorDashboardScreen extends StatelessWidget {
                 if (deliveryMethod == 'delivery')
                   TextField(
                     controller: deliveryAreaController,
-                    decoration: const InputDecoration(labelText: 'Delivery area'),
+                    decoration:
+                        const InputDecoration(labelText: 'Delivery area'),
                   ),
                 if (deliveryMethod == 'collection')
                   TextField(
                     controller: collectionPointController,
-                    decoration: const InputDecoration(labelText: 'Collection point'),
+                    decoration:
+                        const InputDecoration(labelText: 'Collection point'),
                   ),
                 const SizedBox(height: 12),
                 TextField(
@@ -167,7 +189,9 @@ class VendorDashboardScreen extends StatelessWidget {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
             FilledButton(
               onPressed: () {
                 Navigator.pop(ctx, {
@@ -176,8 +200,10 @@ class VendorDashboardScreen extends StatelessWidget {
                   'deliveryArea': deliveryAreaController.text.trim(),
                   'collectionPoint': collectionPointController.text.trim(),
                   'turnaround': turnaroundController.text.trim(),
-                  'paymentInstructions': paymentInstructionsController.text.trim(),
-                  'deliveryInstructions': deliveryInstructionsController.text.trim(),
+                  'paymentInstructions':
+                      paymentInstructionsController.text.trim(),
+                  'deliveryInstructions':
+                      deliveryInstructionsController.text.trim(),
                 });
               },
               child: const Text('Confirm order'),
@@ -186,12 +212,21 @@ class VendorDashboardScreen extends StatelessWidget {
         ),
       ),
     ).then((result) {
-      _disposeControllers([priceController, deliveryAreaController,
-        collectionPointController, turnaroundController,
-        paymentInstructionsController, deliveryInstructionsController, notesController]);
+      _disposeControllers([
+        priceController,
+        deliveryAreaController,
+        collectionPointController,
+        turnaroundController,
+        paymentInstructionsController,
+        deliveryInstructionsController,
+        notesController
+      ]);
       if (result == null) return;
-      final priceDollars = double.tryParse(result['finalPrice'] as String? ?? '');
-      final priceCents = priceDollars != null ? (priceDollars * 100).round() : order.totalCents;
+      final priceDollars =
+          double.tryParse(result['finalPrice'] as String? ?? '');
+      final priceCents = priceDollars != null
+          ? (priceDollars * 100).round()
+          : order.totalCents;
       vendorStore.confirmOrder(
         orderId: order.id,
         finalPriceCents: priceCents,
@@ -293,8 +328,8 @@ class VendorDashboardScreen extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
-              store.updateProfile(
+            onPressed: () async {
+              await vendorStore.updateProfile(
                 vendor.copyWith(
                   name: nameController.text.trim(),
                   location: locationController.text.trim(),
@@ -304,7 +339,7 @@ class VendorDashboardScreen extends StatelessWidget {
                   description: descriptionController.text.trim(),
                 ),
               );
-              Navigator.pop(dialogContext);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
             },
             child: const Text('Save'),
           ),
@@ -376,7 +411,8 @@ class VendorDashboardScreen extends StatelessWidget {
         animation: Listenable.merge([vendorStore, store]),
         builder: (context, _) {
           // Fetch orders from backend on first build.
-          if (vendorStore.isSignedIn && vendorStore.currentVendorOrders.isEmpty) {
+          if (vendorStore.isSignedIn &&
+              vendorStore.currentVendorOrders.isEmpty) {
             vendorStore.fetchOrders();
           }
           final vendor = vendorStore.currentVendor;
@@ -496,21 +532,27 @@ class VendorDashboardScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (order.finalPriceCents != null)
-                                    Text('Confirmed total: ${order.confirmedTotalLabel}',
-                                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    Text(
+                                        'Confirmed total: ${order.confirmedTotalLabel}',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600)),
                                   if (order.deliveryMethod.isNotEmpty)
-                                    Text('Delivery: ${order.deliveryMethod}${order.deliveryArea.isNotEmpty ? ' — ${order.deliveryArea}' : ''}'),
+                                    Text(
+                                        'Delivery: ${order.deliveryMethod}${order.deliveryArea.isNotEmpty ? ' — ${order.deliveryArea}' : ''}'),
                                   if (order.collectionPoint.isNotEmpty)
-                                    Text('Collection: ${order.collectionPoint}'),
+                                    Text(
+                                        'Collection: ${order.collectionPoint}'),
                                   if (order.turnaroundTime.isNotEmpty)
                                     Text('Turnaround: ${order.turnaroundTime}'),
                                   if (order.paymentInstructions.isNotEmpty) ...[
                                     const SizedBox(height: 4),
-                                    Text('Payment: ${order.paymentInstructions}',
+                                    Text(
+                                        'Payment: ${order.paymentInstructions}',
                                         style: const TextStyle(fontSize: 12)),
                                   ],
                                   if (order.deliveryInstructions.isNotEmpty)
-                                    Text('Delivery info: ${order.deliveryInstructions}',
+                                    Text(
+                                        'Delivery info: ${order.deliveryInstructions}',
                                         style: const TextStyle(fontSize: 12)),
                                 ],
                               ),
@@ -537,16 +579,16 @@ class VendorDashboardScreen extends StatelessWidget {
                             Row(children: [
                               Expanded(
                                 child: OutlinedButton(
-                                  onPressed: () =>
-                                      _confirmOrder(context, order, action: 'decline'),
+                                  onPressed: () => _confirmOrder(context, order,
+                                      action: 'decline'),
                                   child: const Text('Decline'),
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: FilledButton(
-                                  onPressed: () =>
-                                      _confirmOrder(context, order, action: 'confirm'),
+                                  onPressed: () => _confirmOrder(context, order,
+                                      action: 'confirm'),
                                   child: const Text('Confirm order'),
                                 ),
                               ),

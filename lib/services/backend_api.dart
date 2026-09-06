@@ -324,12 +324,10 @@ class BackendApi {
     final token = await getVendorToken();
     if (!isConfigured || token == null) return null;
     try {
-      final r = await _client
-          .get(
-            Uri.parse('$_baseUrl/api/vendors/me'),
-            headers: {'Authorization': 'Bearer $token'},
-          )
-          .timeout(const Duration(seconds: 10));
+      final r = await _client.get(
+        Uri.parse('$_baseUrl/api/vendors/me'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
       if (r.statusCode != 200) return null;
       final data = jsonDecode(r.body) as Map;
       final v = data['vendor'] as Map?;
@@ -344,12 +342,10 @@ class BackendApi {
     final token = await getVendorToken();
     if (!isConfigured || token == null) return [];
     try {
-      final r = await _client
-          .get(
-            Uri.parse('$_baseUrl/api/vendors/me/products'),
-            headers: {'Authorization': 'Bearer $token'},
-          )
-          .timeout(const Duration(seconds: 10));
+      final r = await _client.get(
+        Uri.parse('$_baseUrl/api/vendors/me/products'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
       if (r.statusCode != 200) return [];
       final data = jsonDecode(r.body) as Map;
       final list = data['products'] as List? ?? [];
@@ -358,6 +354,133 @@ class BackendApi {
           .toList();
     } catch (_) {
       return [];
+    }
+  }
+
+  Future<Vendor?> updateVendorProfile({
+    required String name,
+    required String location,
+    required String description,
+    required String phone,
+    required String ecocashNumber,
+    required String whatsapp,
+  }) async {
+    final token = await getVendorToken();
+    if (!isConfigured || token == null) return null;
+    try {
+      final r = await _client
+          .patch(
+            Uri.parse('$_baseUrl/api/vendors/me'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': '******',
+            },
+            body: jsonEncode({
+              'name': name,
+              'location': location,
+              'description': description,
+              'phone': phone,
+              'ecocashNumber': ecocashNumber,
+              'whatsapp': whatsapp,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (r.statusCode != 200) return null;
+      final data = jsonDecode(r.body) as Map;
+      final vendor = data['vendor'] as Map?;
+      return vendor == null
+          ? null
+          : Vendor.fromJson(Map<String, Object?>.from(vendor));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Product?> createVendorProduct({
+    required String name,
+    required String description,
+    required String category,
+    required int priceCents,
+    required List<String> tags,
+    required bool inStock,
+    required bool canBuyOnline,
+  }) async {
+    final token = await getVendorToken();
+    if (!isConfigured || token == null) return null;
+    try {
+      final r = await _client
+          .post(
+            Uri.parse('$_baseUrl/api/vendors/me/products'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': '******',
+            },
+            body: jsonEncode({
+              'name': name,
+              'description': description,
+              'category': category,
+              'priceCents': priceCents,
+              'tags': tags,
+              'inStock': inStock,
+              'canBuyOnline': canBuyOnline,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (r.statusCode != 200) return null;
+      final data = jsonDecode(r.body) as Map;
+      final product = data['product'] as Map?;
+      return product == null
+          ? null
+          : Product.fromJson(Map<String, Object?>.from(product));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Product?> updateVendorProduct(Product product) async {
+    final token = await getVendorToken();
+    if (!isConfigured || token == null) return null;
+    try {
+      final r = await _client
+          .patch(
+            Uri.parse('$_baseUrl/api/vendors/me/products/${product.id}'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': '******',
+            },
+            body: jsonEncode({
+              'name': product.name,
+              'description': product.description,
+              'category': product.category,
+              'priceCents': product.priceCents,
+              'tags': product.tags,
+              'inStock': product.inStock,
+              'canBuyOnline': product.canBuyOnline,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (r.statusCode != 200) return null;
+      final data = jsonDecode(r.body) as Map;
+      final updated = data['product'] as Map?;
+      return updated == null
+          ? null
+          : Product.fromJson(Map<String, Object?>.from(updated));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> deleteVendorProduct(String productId) async {
+    final token = await getVendorToken();
+    if (!isConfigured || token == null) return false;
+    try {
+      final r = await _client.delete(
+        Uri.parse('$_baseUrl/api/vendors/me/products/$productId'),
+        headers: {'Authorization': '******'},
+      ).timeout(const Duration(seconds: 10));
+      return r.statusCode == 200;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -375,12 +498,10 @@ class BackendApi {
     final token = await getVendorToken();
     if (!isConfigured || token == null) return [];
     try {
-      final r = await _client
-          .get(
-            Uri.parse('$_baseUrl/api/vendors/me/orders'),
-            headers: {'Authorization': 'Bearer $token'},
-          )
-          .timeout(const Duration(seconds: 10));
+      final r = await _client.get(
+        Uri.parse('$_baseUrl/api/vendors/me/orders'),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 10));
       if (r.statusCode != 200) return [];
       final data = jsonDecode(r.body) as Map;
       final list = data['orders'] as List? ?? [];

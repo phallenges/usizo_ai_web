@@ -18,7 +18,15 @@ from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
-from .database import db, init_schema, row_to_product, row_to_vendor, token_digest, utc_now
+from .database import (
+    DATABASE_URL,
+    db,
+    init_schema,
+    row_to_product,
+    row_to_vendor,
+    token_digest,
+    utc_now,
+)
 from .seed import new_order_id, new_product_id, new_review_id, new_vendor_id, seed_if_empty
 
 logger = logging.getLogger("usizo")
@@ -42,6 +50,10 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("JWT_SECRET must be set to at least 32 characters in production.")
     if ENVIRONMENT == "production" and not ALLOWED_ORIGINS:
         raise RuntimeError("CORS_ALLOWED_ORIGINS must be configured in production.")
+    if ENVIRONMENT == "production" and not DATABASE_URL.startswith(
+        ("postgres://", "postgresql://")
+    ):
+        raise RuntimeError("DATABASE_URL must be a PostgreSQL URL in production.")
     init_schema()
     # Demo catalog data must never silently become a production marketplace.
     if ENVIRONMENT != "production" or os.getenv("SEED_DEMO_DATA") == "true":

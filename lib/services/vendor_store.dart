@@ -116,7 +116,7 @@ class VendorStore extends ChangeNotifier {
           ..addAll(products);
       }
       notifyListeners();
-      _persist();
+      unawaited(_persist());
     } catch (_) {}
   }
 
@@ -173,7 +173,7 @@ class VendorStore extends ChangeNotifier {
         if (vendor != null) {
           _vendors.add(vendor);
           _sessionVendorId = vendor.id;
-          _persist();
+          unawaited(_persist());
           _saveBackendToken();
           notifyListeners();
           return null;
@@ -200,7 +200,7 @@ class VendorStore extends ChangeNotifier {
     _pinsByVendorId[vendor.id] = trimmedPin;
     _sessionVendorId = vendor.id;
     notifyListeners();
-    _persist();
+    unawaited(_persist());
     return null;
   }
 
@@ -222,7 +222,7 @@ class VendorStore extends ChangeNotifier {
           _sessionVendorId = vendor.id;
           _saveBackendToken();
           notifyListeners();
-          _persist();
+          unawaited(_persist());
           // Fetch products from backend.
           unawaited(_syncFromBackend());
           return null;
@@ -239,7 +239,7 @@ class VendorStore extends ChangeNotifier {
 
     _sessionVendorId = vendor.id;
     notifyListeners();
-    _persist();
+    unawaited(_persist());
     return null;
   }
 
@@ -248,7 +248,7 @@ class VendorStore extends ChangeNotifier {
     _backendToken = null;
     _backendApi?.vendorSignOut();
     notifyListeners();
-    _persist();
+    unawaited(_persist());
   }
 
   Future<void> _saveBackendToken() async {
@@ -262,15 +262,29 @@ class VendorStore extends ChangeNotifier {
     } catch (_) {}
   }
 
-  void updateProfile(Vendor updated) {
+  Future<void> updateProfile(Vendor updated) async {
     final index = _vendors.indexWhere((v) => v.id == updated.id);
     if (index < 0) return;
+    if (_backendApi != null &&
+        _backendApi.isConfigured &&
+        _backendToken != null) {
+      final serverVendor = await _backendApi.updateVendorProfile(
+        name: updated.name,
+        location: updated.location,
+        description: updated.description,
+        phone: updated.phone,
+        ecocashNumber: updated.ecocashNumber,
+        whatsapp: updated.whatsapp,
+      );
+      if (serverVendor == null) return;
+      updated = serverVendor;
+    }
     _vendors[index] = updated;
     notifyListeners();
-    _persist();
+    unawaited(_persist());
   }
 
-  Product addProduct({
+  Future<Product> addProduct({
     required String name,
     required String description,
     required String category,
@@ -278,7 +292,7 @@ class VendorStore extends ChangeNotifier {
     required List<String> tags,
     bool inStock = true,
     bool canBuyOnline = false,
-  }) {
+  }) async {
     final vendorId = _sessionVendorId;
     if (vendorId == null) {
       throw StateError('No vendor signed in');
@@ -296,33 +310,73 @@ class VendorStore extends ChangeNotifier {
       canBuyOnline: canBuyOnline,
     );
 
+    if (_backendApi != null &&
+        _backendApi.isConfigured &&
+        _backendToken != null) {
+      final serverProduct = await _backendApi.createVendorProduct(
+        name: product.name,
+        description: product.description,
+        category: product.category,
+        priceCents: product.priceCents,
+        tags: product.tags,
+        inStock: product.inStock,
+        canBuyOnline: product.canBuyOnline,
+      );
+      if (serverProduct == null) return product;
+      _products.add(serverProduct);
+      notifyListeners();
+      unawaited(_persist());
+      return serverProduct;
+    }
     _products.add(product);
     notifyListeners();
-    _persist();
+    unawaited(_persist());
     return product;
   }
 
-  void updateProduct(Product product) {
+  Future<void> updateProduct(Product product) async {
     final index = _products.indexWhere((p) => p.id == product.id);
     if (index < 0) return;
+    if (_backendApi != null &&
+        _backendApi.isConfigured &&
+        _backendToken != null) {
+      final serverProduct = await _backendApi.updateVendorProduct(product);
+      if (serverProduct == null) return;
+      product = serverProduct;
+    }
     _products[index] = product;
     notifyListeners();
-    _persist();
+    unawaited(_persist());
   }
 
-  void removeProduct(String productId) {
+  Future<void> removeProduct(String productId) async {
+    if (_backendApi != null &&
+        _backendApi.isConfigured &&
+        _backendToken != null) {
+      final deleted = await _backendApi.deleteVendorProduct(productId);
+      if (!deleted) return;
+    }
     _products.removeWhere((p) => p.id == productId);
     notifyListeners();
-    _persist();
+    unawaited(_persist());
   }
 
-  void toggleProductStock(String productId) {
+  Future<void> toggleProductStock(String productId) async {
     final index = _products.indexWhere((p) => p.id == productId);
     if (index < 0) return;
     final product = _products[index];
-    _products[index] = product.copyWith(inStock: !product.inStock);
+    final updated = product.copyWith(inStock: !product.inStock);
+    if (_backendApi != null &&
+        _backendApi.isConfigured &&
+        _backendToken != null) {
+      final serverProduct = await _backendApi.updateVendorProduct(updated);
+      if (serverProduct == null) return;
+      _products[index] = serverProduct;
+    } else {
+      _products[index] = updated;
+    }
     notifyListeners();
-    _persist();
+    unawaited(_persist());
   }
 
   // ── Orders ───────────────────────────────────────────────────────
@@ -333,8 +387,10 @@ class VendorStore extends ChangeNotifier {
     try {
       final orders = await _backendApi.fetchVendorOrders();
       // Replace local orders with server state.
-      final vendorOrders = orders.where((o) => o.vendorId == _sessionVendorId).toList();
-      final nonVendorOrders = _orders.where((o) => o.vendorId != _sessionVendorId).toList();
+      final vendorOrders =
+          orders.where((o) => o.vendorId == _sessionVendorId).toList();
+      final nonVendorOrders =
+          _orders.where((o) => o.vendorId != _sessionVendorId).toList();
       _orders
         ..clear()
         ..addAll(nonVendorOrders)

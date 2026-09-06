@@ -82,7 +82,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         .toList();
   }
 
-  void _save() {
+  Future<void> _save() async {
     final name = nameController.text.trim();
     if (name.isEmpty) {
       _showError('Enter a product name.');
@@ -99,7 +99,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
     final description = descriptionController.text.trim();
 
     if (widget.product == null) {
-      widget.vendorStore.addProduct(
+      await widget.vendorStore.addProduct(
         name: name,
         description: description,
         category: category,
@@ -109,7 +109,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
         canBuyOnline: canBuyOnline,
       );
     } else {
-      widget.vendorStore.updateProduct(
+      await widget.vendorStore.updateProduct(
         widget.product!.copyWith(
           name: name,
           description: description,
@@ -122,6 +122,7 @@ class _VendorProductFormScreenState extends State<VendorProductFormScreen> {
       );
     }
 
+    if (!mounted) return;
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
