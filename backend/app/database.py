@@ -260,7 +260,6 @@ CREATE INDEX IF NOT EXISTS idx_remedy_submissions_status_created
   ON remedy_submissions(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_created
   ON audit_events(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
 """
 
 
@@ -280,6 +279,10 @@ def _postgres_schema(conn: PostgresConnection) -> None:
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_instructions TEXT DEFAULT ''")
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS vendor_notes TEXT DEFAULT ''")
         conn.execute("ALTER TABLE devices ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id)")
+    except Exception:
+        conn.raw.rollback()
+        raise
     finally:
         conn.execute("SELECT pg_advisory_unlock(837421)")
 
@@ -313,6 +316,7 @@ def init_schema() -> None:
         device_columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)")}
         if "user_id" not in device_columns:
             conn.execute("ALTER TABLE devices ADD COLUMN user_id TEXT REFERENCES users(id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id)")
 
 
 def token_digest(token: str) -> str:
