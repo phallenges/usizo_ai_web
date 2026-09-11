@@ -24,7 +24,10 @@ class BackendApi {
 
   static const _maxAttempts = 3;
   static const _requestTimeout = Duration(seconds: 10);
-  static const _baseUrl = String.fromEnvironment('USIZO_API_BASE_URL');
+  static const _baseUrl = String.fromEnvironment(
+    'USIZO_API_BASE_URL',
+    defaultValue: 'https://usizoai.onrender.com',
+  );
   static const _deviceIdKey = 'api_device_id';
   static const _vendorTokenKey = 'api_vendor_token';
   static const _vendorIdKey = 'api_vendor_id';

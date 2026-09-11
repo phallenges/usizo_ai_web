@@ -9,6 +9,7 @@ coverage/
 android/.gradle/
 android/local.properties
 android/key.properties
+android/app/*.jks
 ios/Pods/
 *.iml
 .idea/
