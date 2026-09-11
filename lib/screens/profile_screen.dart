@@ -3,49 +3,65 @@ import 'package:flutter/material.dart';
 import '../l10n/localized.dart';
 import '../models/user_profile.dart';
 import '../services/app_store.dart';
-import '../services/vendor_store.dart';
+import '../services/payment_service.dart';
 import 'activate_screen.dart';
 import 'payment_details_screen.dart';
 import 'remedy_submission_screen.dart';
-import 'vendor_auth_screen.dart';
-import 'vendor_dashboard_screen.dart';
-import '../services/integration_stubs.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     required this.store,
-    required this.vendorStore,
+    this.openUpgrade = false,
+    this.onUpgradeOpened,
     super.key,
   });
 
   final AppStore store;
-  final VendorStore vendorStore;
+  final bool openUpgrade;
+  final VoidCallback? onUpgradeOpened;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late final TextEditingController nameController;
-  late final TextEditingController emailController;
   late final TextEditingController allergiesController;
+  late final TextEditingController conditionsController;
+  late final TextEditingController medicationsController;
   late final TextEditingController emergencyController;
 
   @override
   void initState() {
     super.initState();
     final profile = widget.store.profile;
-    nameController = TextEditingController(text: profile.name);
-    emailController = TextEditingController(text: profile.email);
     allergiesController = TextEditingController(text: profile.allergies);
+    conditionsController =
+        TextEditingController(text: profile.medicalConditions);
+    medicationsController =
+        TextEditingController(text: profile.currentMedications);
     emergencyController = TextEditingController(text: profile.emergencyContact);
+    if (widget.openUpgrade) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _subscribePremium();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.openUpgrade && !oldWidget.openUpgrade) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _subscribePremium();
+      });
+    }
   }
 
   @override
   void dispose() {
-    nameController.dispose();
-    emailController.dispose();
     allergiesController.dispose();
+    conditionsController.dispose();
+    medicationsController.dispose();
     emergencyController.dispose();
     super.dispose();
   }
@@ -53,9 +69,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void save() {
     widget.store.updateProfile(
       UserProfile(
-        name: nameController.text.trim(),
-        email: emailController.text.trim(),
+        name: widget.store.profile.name,
+        email: widget.store.profile.email,
         allergies: allergiesController.text.trim(),
+        medicalConditions: conditionsController.text.trim(),
+        currentMedications: medicationsController.text.trim(),
         emergencyContact: emergencyController.text.trim(),
       ),
     );
@@ -65,12 +83,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _subscribePremium() async {
-    final name = nameController.text.trim();
-    final email = emailController.text.trim();
+    widget.onUpgradeOpened?.call();
+    final name = widget.store.profile.name;
 
-    final gateway = ProductionPaymentGateway();
-    final instruction = gateway.subscribePremium(
-      userEmail: email,
+    final instruction = PaymentService().subscriptionInstruction(
       userName: name.isNotEmpty ? name : 'User',
     );
 
@@ -93,26 +109,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _openVendorPortal() {
-    if (widget.vendorStore.isSignedIn) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => VendorDashboardScreen(
-              vendorStore: widget.vendorStore, store: widget.store),
-        ),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => VendorAuthScreen(
-              vendorStore: widget.vendorStore, store: widget.store),
-        ),
-      );
-    }
-  }
-
   void _openRemedySubmission() {
     Navigator.push(
       context,
@@ -129,50 +125,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
           Text(
-            context.tr('profile.title'),
+            'Medical information',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 6),
-          Text(context.tr('profile.staysOnDevice')),
+          const Text(
+            'Keep this information up to date so your symptom guidance can be more relevant.',
+          ),
           const SizedBox(height: 22),
           TextField(
-            controller: nameController,
-            decoration: InputDecoration(
-              labelText: context.tr('profile.name'),
-              prefixIcon: const Icon(Icons.person_outline),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              labelText: context.tr('profile.emailOptional'),
-              prefixIcon: const Icon(Icons.email_outlined),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
             controller: allergiesController,
-            decoration: InputDecoration(
-              labelText: context.tr('profile.allergies'),
+            decoration: const InputDecoration(
+              labelText: 'Allergies',
               prefixIcon: const Icon(Icons.warning_amber_outlined),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: conditionsController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Medical conditions',
+              hintText: 'For example: asthma, diabetes, hypertension',
+              prefixIcon: Icon(Icons.medical_information_outlined),
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: medicationsController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Current medications',
+              hintText: 'List medicines or supplements you currently use',
+              prefixIcon: Icon(Icons.medication_outlined),
+              alignLabelWithHint: true,
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: emergencyController,
             keyboardType: TextInputType.phone,
-            decoration: InputDecoration(
-              labelText: context.tr('profile.emergencyContact'),
-              prefixIcon: const Icon(Icons.contact_phone_outlined),
+            decoration: const InputDecoration(
+              labelText: 'Emergency contact',
+              prefixIcon: Icon(Icons.contact_phone_outlined),
             ),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: save,
             icon: const Icon(Icons.save_outlined),
-            label: Text(context.tr('profile.saveProfile')),
+            label: const Text('Save medical information'),
           ),
           const SizedBox(height: 24),
           Card(
@@ -274,63 +277,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       OutlinedButton(
                         onPressed: _activateToken,
                         child: Text(context.tr('profile.hasToken')),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          AnimatedBuilder(
-            animation: widget.vendorStore,
-            builder: (context, _) {
-              final signedIn = widget.vendorStore.isSignedIn;
-              final vendor = widget.vendorStore.currentVendor;
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            signedIn ? Icons.store : Icons.storefront_outlined,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  signedIn
-                                      ? context.tr('profile.yourVendorShop')
-                                      : context.tr('profile.sellOnUsizo'),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  signedIn
-                                      ? '${vendor?.name ?? 'Shop'} · ${widget.vendorStore.currentVendorProducts.length} ${context.tr('profile.products')}'
-                                      : context.tr('profile.signupDescription'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: _openVendorPortal,
-                        child: Text(
-                          signedIn
-                              ? context.tr('profile.manageShop')
-                              : context.tr('profile.becomeVendor'),
-                        ),
                       ),
                     ],
                   ),

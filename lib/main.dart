@@ -14,7 +14,6 @@ import 'services/backend_api.dart';
 import 'services/onnx_embedding_service.dart';
 import 'services/remedy_catalog.dart';
 import 'services/symptom_checker.dart';
-import 'services/vendor_store.dart';
 import 'services/vector_index_service.dart';
 
 Future<void> main() async {
@@ -27,8 +26,6 @@ Future<void> main() async {
   final backendApi = BackendApi();
   final store = AppStore(backendApi: backendApi);
   await store.load();
-  final vendorStore = VendorStore(backendApi: backendApi);
-  await vendorStore.load();
   final remedies = await RemedyCatalog.load();
   final contributedRemedies = await backendApi.fetchApprovedRemedies();
   final allRemedies = [...remedies, ...contributedRemedies];
@@ -50,7 +47,6 @@ Future<void> main() async {
   runApp(
     UsizoAiApp(
       store: store,
-      vendorStore: vendorStore,
       remedies: allRemedies,
       checker: checker,
       tourComplete: (await SharedPreferences.getInstance())
@@ -64,7 +60,6 @@ Future<void> main() async {
 class UsizoAiApp extends StatelessWidget {
   const UsizoAiApp({
     required this.store,
-    required this.vendorStore,
     required this.remedies,
     required this.checker,
     required this.tourComplete,
@@ -73,7 +68,6 @@ class UsizoAiApp extends StatelessWidget {
   });
 
   final AppStore store;
-  final VendorStore vendorStore;
   final List<Remedy> remedies;
   final SymptomChecker checker;
   final bool tourComplete;
@@ -88,7 +82,7 @@ class UsizoAiApp extends StatelessWidget {
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) => Localized(
-        languageCode: store.languageCode,
+        languageCode: 'en',
         child: MaterialApp(
           title: 'UsizoAI',
           debugShowCheckedModeBanner: false,
@@ -106,7 +100,6 @@ class UsizoAiApp extends StatelessWidget {
             tourComplete: tourComplete,
             accountReady: accountReady,
             store: store,
-            vendorStore: vendorStore,
             remedies: remedies,
             checker: checker,
           ),
@@ -121,7 +114,6 @@ class _TourGate extends StatefulWidget {
     required this.tourComplete,
     required this.accountReady,
     required this.store,
-    required this.vendorStore,
     required this.remedies,
     required this.checker,
   });
@@ -129,7 +121,6 @@ class _TourGate extends StatefulWidget {
   final bool tourComplete;
   final bool accountReady;
   final AppStore store;
-  final VendorStore vendorStore;
   final List<Remedy> remedies;
   final SymptomChecker checker;
 
@@ -150,7 +141,6 @@ class _TourGateState extends State<_TourGate> {
     return _AccountGate(
       accountReady: widget.accountReady,
       store: widget.store,
-      vendorStore: widget.vendorStore,
       remedies: widget.remedies,
       checker: widget.checker,
     );
@@ -161,14 +151,12 @@ class _AccountGate extends StatefulWidget {
   const _AccountGate({
     required this.accountReady,
     required this.store,
-    required this.vendorStore,
     required this.remedies,
     required this.checker,
   });
 
   final bool accountReady;
   final AppStore store;
-  final VendorStore vendorStore;
   final List<Remedy> remedies;
   final SymptomChecker checker;
 
@@ -192,7 +180,6 @@ class _AccountGateState extends State<_AccountGate> {
     }
     return HomeScreen(
       store: widget.store,
-      vendorStore: widget.vendorStore,
       remedies: widget.remedies,
       checker: widget.checker,
     );

@@ -172,6 +172,8 @@ CREATE TABLE IF NOT EXISTS device_profiles (
   name TEXT DEFAULT '',
   email TEXT DEFAULT '',
   allergies TEXT DEFAULT '',
+  medical_conditions TEXT DEFAULT '',
+  current_medications TEXT DEFAULT '',
   emergency_contact TEXT DEFAULT '',
   updated_at TEXT NOT NULL
 );
@@ -279,6 +281,8 @@ def _postgres_schema(conn: PostgresConnection) -> None:
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_instructions TEXT DEFAULT ''")
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS vendor_notes TEXT DEFAULT ''")
         conn.execute("ALTER TABLE devices ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id)")
+        conn.execute("ALTER TABLE device_profiles ADD COLUMN IF NOT EXISTS medical_conditions TEXT DEFAULT ''")
+        conn.execute("ALTER TABLE device_profiles ADD COLUMN IF NOT EXISTS current_medications TEXT DEFAULT ''")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id)")
     except Exception:
         conn.raw.rollback()
@@ -316,6 +320,14 @@ def init_schema() -> None:
         device_columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)")}
         if "user_id" not in device_columns:
             conn.execute("ALTER TABLE devices ADD COLUMN user_id TEXT REFERENCES users(id)")
+        profile_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(device_profiles)")
+        }
+        for column in ("medical_conditions", "current_medications"):
+            if column not in profile_columns:
+                conn.execute(
+                    f"ALTER TABLE device_profiles ADD COLUMN {column} TEXT DEFAULT ''"
+                )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id)")
 
 

@@ -44,7 +44,7 @@ class OrderConfirmationScreen extends StatelessWidget {
                 child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(vendor?.name ?? 'Mama Rudo Herbs',
+                      Text(vendor?.name ?? 'Treasure Motsu',
                           style: theme.textTheme.titleMedium),
                       const SizedBox(height: 6),
                       ...order.items.map(
@@ -58,7 +58,8 @@ class OrderConfirmationScreen extends StatelessWidget {
                         Text('Estimated total: ${order.totalLabel}'),
 
                       // Vendor confirmation details
-                      if (isConfirmed && order.paymentInstructions.isNotEmpty) ...[
+                      if (isConfirmed &&
+                          order.paymentInstructions.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
@@ -71,7 +72,9 @@ class OrderConfirmationScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text('Vendor instructions:',
-                                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13)),
                               const SizedBox(height: 4),
                               Text('Payment: ${order.paymentInstructions}',
                                   style: const TextStyle(fontSize: 13)),
@@ -90,7 +93,8 @@ class OrderConfirmationScreen extends StatelessWidget {
                               if (order.deliveryInstructions.isNotEmpty) ...[
                                 const SizedBox(height: 4),
                                 Text(order.deliveryInstructions,
-                                    style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.grey)),
                               ],
                             ],
                           ),

@@ -4,7 +4,6 @@ import '../l10n/localized.dart';
 import '../models/vendor.dart';
 import '../services/app_store.dart';
 import '../services/marketplace_catalog.dart';
-import '../services/vendor_store.dart';
 import 'order_confirmation_screen.dart';
 
 /// Shopping cart for marketplace products.
@@ -13,12 +12,10 @@ import 'order_confirmation_screen.dart';
 class CartScreen extends StatefulWidget {
   const CartScreen({
     required this.store,
-    required this.vendorStore,
     super.key,
   });
 
   final AppStore store;
-  final VendorStore vendorStore;
 
   @override
   State<CartScreen> createState() => _CartScreenState();
@@ -35,7 +32,7 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _loadVendors() async {
-    final catalog = await MarketplaceCatalog.load(widget.vendorStore, widget.store.backendApi);
+    final catalog = await MarketplaceCatalog.load(widget.store.backendApi);
     if (mounted) {
       setState(() {
         vendors = catalog.vendors;
@@ -152,13 +149,6 @@ class _CartScreenState extends State<CartScreen> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              product.priceLabel,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
                             IconButton(
                               icon: const Icon(Icons.delete_outline),
                               tooltip: 'Remove',

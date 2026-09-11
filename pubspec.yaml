@@ -13,9 +13,6 @@ dependencies:
   url_launcher: ^6.3.1
   onnxruntime: ^1.4.1
   uuid: ^4.0.0
-  connectivity_plus: ^6.1.0
-  geolocator: ^13.0.1
-  geocoding: ^3.0.0
   http: ^1.2.2
   image_picker: ^1.1.2
 
@@ -36,8 +33,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/remedies.json
-    - assets/vendors.json
-    - assets/products.json
     - assets/images/app_icon.png
     - assets/models/all_minilm_l12_v2.onnx
-

@@ -30,18 +30,6 @@ class SymptomCheckerScreen extends StatefulWidget {
 class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
   final controller = TextEditingController();
   CheckResult? result;
-  String language = 'English';
-
-  String get _languageCodeFromName {
-    switch (language) {
-      case 'Shona':
-        return 'sn';
-      case 'Ndebele':
-        return 'nd';
-      default:
-        return 'en';
-    }
-  }
   bool isChecking = false;
 
   @override
@@ -49,8 +37,6 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
     controller.dispose();
     super.dispose();
   }
-
-  String get _languageCode => _languageCodeFromName;
 
   Future<void> _showUpgradeDialog() async {
     await showDialog<void>(
@@ -130,29 +116,9 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const UsizoLogo(size: 48, showText: false),
-              DropdownButton<String>(
-                value: language,
-                underline: const SizedBox.shrink(),
-                items: const ['English', 'Shona', 'Ndebele']
-                    .map(
-                      (item) => DropdownMenuItem(
-                        value: item,
-                        child: Text(item),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() => language = value);
-                  final code = _languageCodeFromName;
-                  widget.store.setLanguageCode(code);
-                },
-              ),
-            ],
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: UsizoLogo(size: 48, showText: false),
           ),
           const SizedBox(height: 4),
           Text(
@@ -174,7 +140,8 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          Text(context.tr('checker.howAreYou'), style: theme.textTheme.titleLarge),
+          Text(context.tr('checker.howAreYou'),
+              style: theme.textTheme.titleLarge),
           const SizedBox(height: 8),
           TextField(
             controller: controller,
@@ -203,7 +170,8 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
                 .map(
                   (pair) => ActionChip(
                     label: Text(pair.$1),
-                    onPressed: isChecking ? null : () => controller.text = pair.$2,
+                    onPressed:
+                        isChecking ? null : () => controller.text = pair.$2,
                   ),
                 )
                 .toList(),
@@ -218,7 +186,9 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.search),
-            label: Text(isChecking ? context.tr('checker.analyzing') : context.tr('checker.checkSymptoms')),
+            label: Text(isChecking
+                ? context.tr('checker.analyzing')
+                : context.tr('checker.checkSymptoms')),
           ),
           const SizedBox(height: 10),
           Center(
@@ -237,14 +207,14 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
             _ResultCard(result: value),
             if (value.remedies.isNotEmpty) ...[
               const SizedBox(height: 20),
-              Text(context.tr('checker.helpfulOptions'), style: theme.textTheme.titleLarge),
+              Text(context.tr('checker.helpfulOptions'),
+                  style: theme.textTheme.titleLarge),
               const SizedBox(height: 10),
               ...value.remedies.map(
                 (remedy) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: RemedyCard(
                     remedy: remedy,
-                    languageCode: _languageCode,
                   ),
                 ),
               ),
@@ -315,4 +285,3 @@ class _ResultCard extends StatelessWidget {
     );
   }
 }
-

@@ -19,7 +19,6 @@ class AppStore extends ChangeNotifier {
   UserProfile _profile = const UserProfile();
   bool _premium = false;
   int _checksUsed = 0;
-  String _languageCode = 'en';
   final List<Product> _cart = [];
   final List<Order> _orders = [];
 
@@ -42,8 +41,6 @@ class AppStore extends ChangeNotifier {
 
   List<Order> get orders => List.unmodifiable(_orders);
 
-  String get languageCode => _languageCode;
-
   bool get canCheck => _premium || _checksUsed < 3;
 
   Future<void> load() async {
@@ -57,7 +54,6 @@ class AppStore extends ChangeNotifier {
       }
       _premium = preferences.getBool('premium') ?? false;
       _checksUsed = preferences.getInt('checksUsed') ?? 0;
-      _languageCode = preferences.getString('languageCode') ?? 'en';
 
       final ordersJson = preferences.getString('orders');
       if (ordersJson != null) {
@@ -97,7 +93,12 @@ class AppStore extends ChangeNotifier {
           name: profileData['name'] as String? ?? _profile.name,
           email: profileData['email'] as String? ?? _profile.email,
           allergies: profileData['allergies'] as String? ?? _profile.allergies,
-          emergencyContact: profileData['emergencyContact'] as String? ?? _profile.emergencyContact,
+          medicalConditions: profileData['medicalConditions'] as String? ??
+              _profile.medicalConditions,
+          currentMedications: profileData['currentMedications'] as String? ??
+              _profile.currentMedications,
+          emergencyContact: profileData['emergencyContact'] as String? ??
+              _profile.emergencyContact,
         );
       }
 
@@ -116,7 +117,8 @@ class AppStore extends ChangeNotifier {
             .toList();
         // Merge: keep local orders not in backend, add/update backend orders
         final backendIds = {for (final o in backendOrders) o.id};
-        final localOnly = _orders.where((o) => !backendIds.contains(o.id)).toList();
+        final localOnly =
+            _orders.where((o) => !backendIds.contains(o.id)).toList();
         _orders
           ..clear()
           ..addAll(backendOrders)
@@ -138,13 +140,6 @@ class AppStore extends ChangeNotifier {
 
   void setPremium(bool value) {
     _premium = value;
-    notifyListeners();
-    _persist();
-  }
-
-  void setLanguageCode(String code) {
-    if (_languageCode == code) return;
-    _languageCode = code;
     notifyListeners();
     _persist();
   }
@@ -307,7 +302,8 @@ class AppStore extends ChangeNotifier {
   }
 
   /// Upload payment proof image to the backend (non-blocking).
-  void submitPaymentProofToBackend(String orderId, {required String imagePath}) {
+  void submitPaymentProofToBackend(String orderId,
+      {required String imagePath}) {
     unawaited(_uploadPaymentProof(orderId, imagePath));
   }
 
@@ -349,7 +345,6 @@ class AppStore extends ChangeNotifier {
       await preferences.setString('profile', jsonEncode(_profile.toJson()));
       await preferences.setBool('premium', _premium);
       await preferences.setInt('checksUsed', _checksUsed);
-      await preferences.setString('languageCode', _languageCode);
       await preferences.setString(
         'orders',
         jsonEncode(_orders.map((o) => o.toJson()).toList()),

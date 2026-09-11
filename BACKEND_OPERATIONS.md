@@ -6,9 +6,8 @@ activation token. It does not process or store card/payment credentials.
 ## Production configuration
 
 Copy `backend/.env.example` to `backend/.env`, set a unique `JWT_SECRET` of at
-least 32 characters, and set the exact `CORS_ALLOWED_ORIGINS` for the deployed
-web/admin clients. Set `ENVIRONMENT=production`; this disables API docs,
-auto-reload, and demo seeding by default.
+least 32 characters, and set the exact `CORS_ALLOWED_ORIGINS` for the deployed web/admin clients. Set
+`ENVIRONMENT=production`; this disables API docs and auto-reload.
 
 Run the API from `backend/` with `py -m uvicorn app.main:app --host 0.0.0.0 --port 3000` behind HTTPS at a reverse proxy. Production requires a managed PostgreSQL database configured through `DATABASE_URL`; SQLite is local-development/test only. Use a TLS-enabled connection string from the provider (for example, one containing `sslmode=require`) and keep the pool within the provider's connection limit with `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX`.
 
@@ -50,14 +49,15 @@ reused or guessed from the old checksum format.
 
 ## Release gates still owned by the business
 
-- Replace the seeded catalog with vetted vendors/products and verify supplier,
-  product-safety, fulfilment, refund, and support processes.
+- Add vetted products for Treasure Motsu and verify supplier, product-safety,
+  fulfilment, refund, and support processes before publishing them.
 - Serve the API and any web/admin client over HTTPS; take encrypted database
   backups and test restoration.
-- Add authenticated customer accounts before storing sensitive health/profile
-  information in the hosted backend. A device ID alone is not an identity.
+- Review the existing authenticated customer account and medical-profile flows
+  before storing additional sensitive health information.
 - Complete the medical/legal review of remedy content, emergency copy, privacy
   notice, consent, retention policy, and applicable health/product rules in
   every launch market.
-- Configure monitoring, error alerting, rate limiting at the reverse proxy,
-  and an incident-response contact before public release.
+- Configure monitoring, error alerting, distributed rate limiting if the
+  service scales beyond one process, and an incident-response contact before
+  public release. The API currently applies per-process, per-IP limits.

@@ -338,6 +338,8 @@ class BackendApi {
             'name': profile.name,
             'email': profile.email,
             'allergies': profile.allergies,
+            'medicalConditions': profile.medicalConditions,
+            'currentMedications': profile.currentMedications,
             'emergencyContact': profile.emergencyContact,
           }),
         ),

@@ -73,32 +73,39 @@ def test_account_register_and_login(client):
     assert me.json()["account"]["allergies"] == "Peanuts"
 
 
+def test_auth_rate_limit_returns_retry_after(client):
+    headers = {"X-Forwarded-For": "198.51.100.42"}
+    for _ in range(10):
+        response = client.post("/api/auth/login", headers=headers, json={})
+        assert response.status_code == 422
+    limited = client.post("/api/auth/login", headers=headers, json={})
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"]
+
+
 # ── Catalog (public) ────────────────────────────────────────────────
 
 
-def test_list_vendors(client):
+def test_list_vendors_starts_empty(client):
     r = client.get("/api/catalog/vendors")
     assert r.status_code == 200
     vendors = r.json()["vendors"]
     assert isinstance(vendors, list)
-    assert len(vendors) > 0  # seeded
+    assert vendors == []
 
 
-def test_list_products(client):
+def test_list_products_starts_empty(client):
     r = client.get("/api/catalog/products")
     assert r.status_code == 200
     products = r.json()["products"]
     assert isinstance(products, list)
-    assert len(products) > 0
+    assert products == []
 
 
 def test_list_products_by_vendor(client):
-    vendors = client.get("/api/catalog/vendors").json()["vendors"]
-    vid = vendors[0]["id"]
-    r = client.get(f"/api/catalog/products?vendorId={vid}")
+    r = client.get("/api/catalog/products?vendorId=missing-vendor")
     assert r.status_code == 200
-    for p in r.json()["products"]:
-        assert p["vendorId"] == vid
+    assert r.json()["products"] == []
 
 
 def test_remedy_submission_requires_moderation(client):
@@ -384,12 +391,34 @@ def test_order_create(client):
     r = client.post("/api/devices/register", json={})
     did = r.json()["deviceId"]
 
+    vendor = client.post(
+        "/api/vendors/register",
+        json={
+            "businessName": "Order Shop",
+            "location": "Bulawayo",
+            "phone": "+263780000001",
+            "pin": "1234",
+        },
+    ).json()
+    product = client.post(
+        "/api/vendors/me/products",
+        json={"name": "Herbal tea", "priceCents": 3100},
+        headers=_auth_header(vendor["token"]),
+    ).json()["product"]
+
     r2 = client.post(
         f"/api/devices/{did}/orders",
         json={
-            "vendorId": "vendor-01",
+            "vendorId": vendor["vendor"]["id"],
             "totalCents": 1,  # Must be ignored by the server.
-            "items": [{"productId": "prod-01", "name": "forged", "priceCents": 1, "quantity": 1}],
+            "items": [
+                {
+                    "productId": product["id"],
+                    "name": "forged",
+                    "priceCents": 1,
+                    "quantity": 1,
+                }
+            ],
         },
     )
     assert r2.status_code == 200

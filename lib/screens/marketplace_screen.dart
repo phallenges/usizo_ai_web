@@ -7,28 +7,20 @@ import '../l10n/localized.dart';
 import '../models/product.dart';
 import '../models/vendor.dart';
 import '../services/app_store.dart';
-import '../services/connectivity_service.dart';
-import '../services/location_service.dart';
 import '../services/marketplace_catalog.dart';
-import '../services/vendor_store.dart';
 import 'cart_screen.dart';
-import 'vendor_auth_screen.dart';
-import 'vendor_dashboard_screen.dart';
 
 /// Marketplace screen showing the single herbal vendor's products.
 ///
-/// - Online + product canBuyOnline → a shortcut to the EcoCash order flow
-/// - Online + product !canBuyOnline → "Contact vendor on WhatsApp"
-/// - Offline → all products show "Contact vendor" (WhatsApp intent opens offline too)
+/// Products marked as available online can be added to the cart or bought now.
+/// Customers can also contact the supplier directly.
 class MarketplaceScreen extends StatefulWidget {
   const MarketplaceScreen({
     required this.store,
-    required this.vendorStore,
     super.key,
   });
 
   final AppStore store;
-  final VendorStore vendorStore;
 
   @override
   State<MarketplaceScreen> createState() => _MarketplaceScreenState();
@@ -36,80 +28,39 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketplaceScreenState extends State<MarketplaceScreen> {
   final searchController = TextEditingController();
-  final connectivity = ConnectivityService();
-  final locationService = LocationService();
 
   String query = '';
   List<Product> products = [];
   List<Vendor> vendors = [];
   bool isLoading = true;
-  bool isOnline = true;
-
-  // User's current position
-  double? userLat;
-  double? userLng;
-  bool locationLoaded = false;
+  Vendor? selectedVendor;
 
   @override
   void initState() {
     super.initState();
-    connectivity.init();
-    _subscription = connectivity.onConnectivityChanged.listen((online) {
-      if (mounted) setState(() => isOnline = online);
-    });
-    isOnline = connectivity.isOnline;
-    widget.vendorStore.addListener(_loadData);
     _loadData();
-    _loadLocation();
   }
 
-  StreamSubscription<bool>? _subscription;
-
   Future<void> _loadData() async {
-    final catalog = await MarketplaceCatalog.load(widget.vendorStore, widget.store.backendApi);
+    final catalog = await MarketplaceCatalog.load(widget.store.backendApi);
     if (mounted) {
       setState(() {
         products = catalog.products;
         vendors = catalog.vendors;
+        if (selectedVendor != null) {
+          final selectedId = selectedVendor!.id;
+          selectedVendor = null;
+          for (final vendor in catalog.vendors) {
+            if (vendor.id == selectedId) {
+              selectedVendor = vendor;
+              break;
+            }
+          }
+        }
         isLoading = false;
       });
     }
   }
-
-  void _openVendorPortal() {
-    if (widget.vendorStore.isSignedIn) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => VendorDashboardScreen(
-              vendorStore: widget.vendorStore, store: widget.store),
-        ),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => VendorAuthScreen(
-              vendorStore: widget.vendorStore, store: widget.store),
-        ),
-      );
-    }
-  }
-
-  Future<void> _loadLocation() async {
-    final position = await locationService.getCurrentPosition();
-    if (mounted && position != null) {
-      setState(() {
-        userLat = position.latitude;
-        userLng = position.longitude;
-        locationLoaded = true;
-      });
-    } else if (mounted) {
-      setState(() => locationLoaded = true);
-    }
-  }
-
-  Vendor? get _shop => vendors.isNotEmpty ? vendors.first : null;
 
   void _openCart() {
     Navigator.push(
@@ -117,7 +68,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
       MaterialPageRoute(
         builder: (_) => CartScreen(
           store: widget.store,
-          vendorStore: widget.vendorStore,
         ),
       ),
     );
@@ -164,16 +114,16 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 
   @override
   void dispose() {
-    widget.vendorStore.removeListener(_loadData);
-    _subscription?.cancel();
-    connectivity.dispose();
     searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = products.where((product) {
+    final selectedProducts = products.where((product) {
+      return selectedVendor != null && product.vendorId == selectedVendor!.id;
+    });
+    final filtered = selectedProducts.where((product) {
       final haystack =
           '${product.name} ${product.category} ${product.description} ${product.tags.join(' ')}'
               .toLowerCase();
@@ -187,17 +137,6 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
             pinned: true,
             title: Text(context.tr('market.title')),
             actions: [
-              IconButton(
-                onPressed: _openVendorPortal,
-                tooltip: widget.vendorStore.isSignedIn
-                    ? context.tr('market.myShop')
-                    : context.tr('market.sellOnUsizo'),
-                icon: Icon(
-                  widget.vendorStore.isSignedIn
-                      ? Icons.store
-                      : Icons.storefront_outlined,
-                ),
-              ),
               AnimatedBuilder(
                 animation: widget.store,
                 builder: (context, _) {
@@ -213,108 +152,101 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
                   );
                 },
               ),
-              // Connectivity indicator
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Center(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isOnline
-                          ? Colors.green.shade100
-                          : Colors.red.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isOnline ? Icons.wifi : Icons.wifi_off,
-                          size: 14,
-                          color: isOnline
-                              ? Colors.green.shade700
-                              : Colors.red.shade700,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isOnline
-                              ? context.tr('market.online')
-                              : context.tr('market.offline'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isOnline
-                                ? Colors.green.shade700
-                                : Colors.red.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                Text(
-                  isOnline
-                      ? context.tr('market.shopOnline')
-                      : context.tr('market.shopOffline'),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: searchController,
-                  onChanged: (value) => setState(() => query = value),
-                  decoration: InputDecoration(
-                    hintText: context.tr('market.searchProducts'),
-                    prefixIcon: const Icon(Icons.search),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // ── Vendor hero card ─────────────────────────────────
-                if (_shop != null) _VendorHeroCard(vendor: _shop!),
-                const SizedBox(height: 20),
-
-                // ── Products ───────────────────────────────────────
+                if (selectedVendor == null) ...[
+                  Text('Choose a supplier to view their products.'),
+                  const SizedBox(height: 14),
+                ],
                 if (isLoading)
                   const Center(child: CircularProgressIndicator())
-                else if (filtered.isEmpty)
+                else if (selectedVendor == null && vendors.isEmpty)
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(
-                        context.tr('market.noProducts'),
+                        'No suppliers are available right now.',
                         textAlign: TextAlign.center,
                       ),
                     ),
                   )
-                else
-                  ...filtered.map(
-                    (product) => AnimatedBuilder(
-                      animation: widget.store,
-                      builder: (context, _) {
-                        final inCart = widget.store.isInCart(product.id);
-                        return _ProductCard(
-                          product: product,
-                          vendor: _shop,
-                          isOnline: isOnline,
-                          inCart: inCart,
-                          onAddToCart: () => _addToCart(product),
-                          onRemoveFromCart: () =>
-                              widget.store.removeFromCart(product),
-                          onContactVendor: () {
-                            if (_shop != null) _contactVendor(_shop!);
-                          },
-                          onBuyNow: () => _buyOnline(product),
-                        );
-                      },
+                else if (selectedVendor == null)
+                  ...vendors.map(
+                    (vendor) => _VendorHeroCard(
+                      vendor: vendor,
+                      onTap: () => setState(() {
+                        selectedVendor = vendor;
+                        query = '';
+                        searchController.clear();
+                      }),
+                    ),
+                  )
+                else ...[
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => setState(() {
+                          selectedVendor = null;
+                          query = '';
+                          searchController.clear();
+                        }),
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: 'All suppliers',
+                      ),
+                      Expanded(
+                        child: Text(
+                          selectedVendor!.name,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _VendorHeroCard(vendor: selectedVendor!),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: searchController,
+                    onChanged: (value) => setState(() => query = value),
+                    decoration: const InputDecoration(
+                      hintText: "Search this supplier's products",
+                      prefixIcon: Icon(Icons.search),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  if (filtered.isEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          'This supplier has no products available yet.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    )
+                  else
+                    ...filtered.map(
+                      (product) => AnimatedBuilder(
+                        animation: widget.store,
+                        builder: (context, _) {
+                          final inCart = widget.store.isInCart(product.id);
+                          return _ProductCard(
+                            product: product,
+                            vendor: selectedVendor,
+                            inCart: inCart,
+                            onAddToCart: () => _addToCart(product),
+                            onRemoveFromCart: () =>
+                                widget.store.removeFromCart(product),
+                            onContactVendor: () =>
+                                _contactVendor(selectedVendor!),
+                            onBuyNow: () => _buyOnline(product),
+                          );
+                        },
+                      ),
+                    ),
+                ],
                 const SizedBox(height: 20),
                 Card(
                   child: Padding(
@@ -341,9 +273,10 @@ class _MarketplaceScreenState extends State<MarketplaceScreen> {
 // ── Vendor Hero Card ─────────────────────────────────────────────────────
 
 class _VendorHeroCard extends StatelessWidget {
-  const _VendorHeroCard({required this.vendor});
+  const _VendorHeroCard({required this.vendor, this.onTap});
 
   final Vendor vendor;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -351,65 +284,69 @@ class _VendorHeroCard extends StatelessWidget {
 
     return Card(
       color: theme.colorScheme.primaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: theme.colorScheme.primary,
-              radius: 28,
-              child: Text(
-                vendor.name.isNotEmpty ? vendor.name[0] : '?',
-                style: TextStyle(
-                  color: theme.colorScheme.onPrimary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 22,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: theme.colorScheme.primary,
+                radius: 28,
+                child: Text(
+                  vendor.name.isNotEmpty ? vendor.name[0] : '?',
+                  style: TextStyle(
+                    color: theme.colorScheme.onPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    vendor.name,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      vendor.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    vendor.location,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onPrimaryContainer
-                          .withValues(alpha: 0.7),
+                    const SizedBox(height: 2),
+                    Text(
+                      vendor.location,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer
+                            .withValues(alpha: 0.7),
+                      ),
                     ),
-                  ),
-                  if (vendor.rating > 0) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.star, size: 16, color: Colors.amber[700]),
-                        const SizedBox(width: 4),
-                        Text(
-                          vendor.ratingLabel,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
+                    if (vendor.rating > 0) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.star, size: 16, color: Colors.amber[700]),
+                          const SizedBox(width: 4),
+                          Text(
+                            vendor.ratingLabel,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '(${vendor.reviewCount} reviews)',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '(${vendor.reviewCount} reviews)',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -422,7 +359,6 @@ class _ProductCard extends StatelessWidget {
   const _ProductCard({
     required this.product,
     required this.vendor,
-    required this.isOnline,
     required this.inCart,
     required this.onAddToCart,
     required this.onRemoveFromCart,
@@ -432,7 +368,6 @@ class _ProductCard extends StatelessWidget {
 
   final Product product;
   final Vendor? vendor;
-  final bool isOnline;
   final bool inCart;
   final VoidCallback onAddToCart;
   final VoidCallback onRemoveFromCart;
@@ -479,13 +414,6 @@ class _ProductCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      product.priceLabel,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
                     if (!product.inStock)
                       Container(
                         margin: const EdgeInsets.only(top: 4),
@@ -534,7 +462,7 @@ class _ProductCard extends StatelessWidget {
                       ),
               ),
               const SizedBox(height: 8),
-              if (isOnline && product.canBuyOnline)
+              if (product.canBuyOnline)
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.tonalIcon(

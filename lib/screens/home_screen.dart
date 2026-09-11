@@ -4,7 +4,6 @@ import '../l10n/localized.dart';
 import '../models/remedy.dart';
 import '../services/app_store.dart';
 import '../services/symptom_checker.dart';
-import '../services/vendor_store.dart';
 import 'marketplace_screen.dart';
 import 'profile_screen.dart';
 import 'symptom_checker_screen.dart';
@@ -12,14 +11,12 @@ import 'symptom_checker_screen.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     required this.store,
-    required this.vendorStore,
     required this.remedies,
     required this.checker,
     super.key,
   });
 
   final AppStore store;
-  final VendorStore vendorStore;
   final List<Remedy> remedies;
   final SymptomChecker checker;
 
@@ -29,8 +26,20 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   var selectedIndex = 0;
+  var _openUpgrade = false;
 
-  void _goToProfile() => setState(() => selectedIndex = 2);
+  void _goToProfile({bool openUpgrade = false}) {
+    setState(() {
+      selectedIndex = 2;
+      _openUpgrade = openUpgrade;
+    });
+  }
+
+  void _upgradeOpened() {
+    if (_openUpgrade) {
+      setState(() => _openUpgrade = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,10 +48,14 @@ class _HomeScreenState extends State<HomeScreen> {
         store: widget.store,
         remedies: widget.remedies,
         checker: widget.checker,
-        onUpgrade: _goToProfile,
+        onUpgrade: () => _goToProfile(openUpgrade: true),
       ),
-      MarketplaceScreen(store: widget.store, vendorStore: widget.vendorStore),
-      ProfileScreen(store: widget.store, vendorStore: widget.vendorStore),
+      MarketplaceScreen(store: widget.store),
+      ProfileScreen(
+        store: widget.store,
+        openUpgrade: _openUpgrade,
+        onUpgradeOpened: _upgradeOpened,
+      ),
     ];
     return Scaffold(
       body: IndexedStack(index: selectedIndex, children: pages),
@@ -81,4 +94,3 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-

@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
@@ -13,7 +14,7 @@ import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -27,7 +28,7 @@ from .database import (
     token_digest,
     utc_now,
 )
-from .seed import new_order_id, new_product_id, new_review_id, new_vendor_id, seed_if_empty
+from .id_factory import new_order_id, new_product_id, new_review_id, new_vendor_id
 
 logger = logging.getLogger("usizo")
 UPLOAD_DIR = Path(__file__).parent.parent / "data" / "uploads"
@@ -42,6 +43,58 @@ JWT_ALG = "HS256"
 JWT_TTL_HOURS = int(os.getenv("JWT_TTL_HOURS", "12"))
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()]
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_DEFAULT = int(os.getenv("RATE_LIMIT_DEFAULT_PER_MINUTE", "120"))
+RATE_LIMIT_AUTH = int(os.getenv("RATE_LIMIT_AUTH_PER_MINUTE", "10"))
+RATE_LIMIT_UPLOAD = int(os.getenv("RATE_LIMIT_UPLOADS_PER_MINUTE", "12"))
+RATE_LIMIT_SUBMISSIONS = int(os.getenv("RATE_LIMIT_SUBMISSIONS_PER_MINUTE", "6"))
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Apply bounded in-memory limits per client process and IP address."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self._requests: dict[tuple[str, str], tuple[int, float]] = {}
+
+    def _limit_for(self, path: str) -> int:
+        if path in ("/api/auth/register", "/api/auth/login"):
+            return RATE_LIMIT_AUTH
+        if path.endswith("/payment-proof"):
+            return RATE_LIMIT_UPLOAD
+        if path == "/api/remedy-submissions":
+            return RATE_LIMIT_SUBMISSIONS
+        return RATE_LIMIT_DEFAULT
+
+    async def dispatch(self, request: Request, call_next):
+        now = time.monotonic()
+        path = request.url.path
+        limit = self._limit_for(path)
+        forwarded_for = request.headers.get("x-forwarded-for")
+        client_ip = (
+            forwarded_for.split(",")[0].strip()
+            if forwarded_for
+            else (request.client.host if request.client else "unknown")
+        )
+        key = (client_ip, path)
+        count, window_start = self._requests.get(key, (0, now))
+        if now - window_start >= RATE_LIMIT_WINDOW_SECONDS:
+            count, window_start = 0, now
+        if count >= limit:
+            retry_after = max(1, int(RATE_LIMIT_WINDOW_SECONDS - (now - window_start)))
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Please try again later."},
+                headers={"Retry-After": str(retry_after)},
+            )
+        self._requests[key] = (count + 1, window_start)
+        if len(self._requests) > 10_000:
+            self._requests = {
+                item_key: item
+                for item_key, item in self._requests.items()
+                if now - item[1] < RATE_LIMIT_WINDOW_SECONDS
+            }
+        return await call_next(request)
 
 
 @asynccontextmanager
@@ -55,13 +108,64 @@ async def lifespan(app: FastAPI):
     ):
         raise RuntimeError("DATABASE_URL must be a PostgreSQL URL in production.")
     init_schema()
-    # Demo catalog data must never silently become a production marketplace.
-    if ENVIRONMENT != "production" or os.getenv("SEED_DEMO_DATA") == "true":
-        seed_if_empty()
+    if ENVIRONMENT == "production":
+        _ensure_production_supplier()
     yield
 
 
+def _ensure_production_supplier() -> None:
+    """Keep production limited to the current supplier until products are added."""
+    now = utc_now()
+    with db() as conn:
+        conn.execute("DELETE FROM products")
+        conn.execute(
+            "DELETE FROM vendors WHERE phone <> ? AND NOT EXISTS "
+            "(SELECT 1 FROM orders WHERE orders.vendor_id = vendors.id)",
+            ("+263 780747989",),
+        )
+        existing = conn.execute(
+            "SELECT id FROM vendors WHERE phone = ?",
+            ("+263 780747989",),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE vendors SET name = ?, location = ?, description = ?, "
+                "whatsapp = ?, ecocash_number = ?, updated_at = ? WHERE phone = ?",
+                (
+                    "Treasure Motsu",
+                    "Bulawayo",
+                    "Supplier for UsizoAI marketplace products.",
+                    "+263 780747989",
+                    "+263 780747989",
+                    now,
+                    "+263 780747989",
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO vendors (
+                  id, name, location, description, phone, whatsapp,
+                  ecocash_number, rating, review_count, pin_hash, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
+                """,
+                (
+                    "vendor-treasure-motsu",
+                    "Treasure Motsu",
+                    "Bulawayo",
+                    "Supplier for UsizoAI marketplace products.",
+                    "+263 780747989",
+                    "+263 780747989",
+                    "+263 780747989",
+                    bcrypt.hashpw(b"change-this-pin", bcrypt.gensalt()).decode("utf-8"),
+                    now,
+                    now,
+                ),
+            )
+
+
 app = FastAPI(title="UsizoAI API", version="1.0.0", lifespan=lifespan, docs_url=None if ENVIRONMENT == "production" else "/docs")
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS or (["*"] if ENVIRONMENT != "production" else []),
@@ -223,6 +327,8 @@ class ProfileBody(BaseModel):
     name: str = ""
     email: str = ""
     allergies: str = ""
+    medicalConditions: str = ""
+    currentMedications: str = ""
     emergencyContact: str = ""
 
 
@@ -806,6 +912,8 @@ def device_state(device_id: str):
             "name": profile["name"],
             "email": profile["email"],
             "allergies": profile["allergies"],
+            "medicalConditions": profile["medical_conditions"],
+            "currentMedications": profile["current_medications"],
             "emergencyContact": profile["emergency_contact"],
             "updatedAt": profile["updated_at"],
         },
@@ -839,13 +947,16 @@ def device_profile(device_id: str, body: ProfileBody):
         conn.execute(
             """
             UPDATE device_profiles SET
-              name = ?, email = ?, allergies = ?, emergency_contact = ?, updated_at = ?
+              name = ?, email = ?, allergies = ?, medical_conditions = ?,
+              current_medications = ?, emergency_contact = ?, updated_at = ?
             WHERE device_id = ?
             """,
             (
                 body.name.strip(),
                 body.email.strip(),
                 body.allergies.strip(),
+                body.medicalConditions.strip(),
+                body.currentMedications.strip(),
                 body.emergencyContact.strip(),
                 now,
                 device_id,
@@ -860,6 +971,8 @@ def device_profile(device_id: str, body: ProfileBody):
             "name": body.name,
             "email": body.email,
             "allergies": body.allergies,
+            "medicalConditions": body.medicalConditions,
+            "currentMedications": body.currentMedications,
             "emergencyContact": body.emergencyContact,
             "updatedAt": now,
         }
