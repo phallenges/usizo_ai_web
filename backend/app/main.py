@@ -99,6 +99,29 @@ def sign_vendor_token(vendor_id: str) -> str:
     )
 
 
+def sign_account_token(user_id: str) -> str:
+    if not JWT_SECRET:
+        raise RuntimeError("JWT_SECRET must be configured before account authentication is used.")
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {"userId": user_id, "role": "customer", "iat": now, "exp": now + timedelta(hours=JWT_TTL_HOURS)},
+        JWT_SECRET,
+        algorithm=JWT_ALG,
+    )
+
+
+def get_account_id(authorization: Optional[str] = Header(default=None)) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Account authentication required.")
+    try:
+        payload = jwt.decode(authorization[7:], JWT_SECRET, algorithms=[JWT_ALG])
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired account token.") from exc
+    if payload.get("role") != "customer" or not payload.get("userId"):
+        raise HTTPException(status_code=401, detail="Invalid customer token.")
+    return payload["userId"]
+
+
 def get_vendor_id(authorization: Optional[str] = Header(default=None)) -> str:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentication required.")
@@ -179,6 +202,21 @@ class ProductUpdateBody(BaseModel):
 
 class DeviceRegisterBody(BaseModel):
     deviceId: Optional[str] = None
+    accountToken: Optional[str] = None
+
+
+class AccountRegisterBody(BaseModel):
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    password: str = Field(min_length=8, max_length=128)
+    name: str = Field(min_length=1, max_length=120)
+    allergies: str = Field(default="", max_length=1000)
+    emergencyContact: str = Field(default="", max_length=100)
+
+
+class AccountLoginBody(BaseModel):
+    identifier: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=128)
 
 
 class ProfileBody(BaseModel):
@@ -207,6 +245,27 @@ class ReviewBody(BaseModel):
     rating: int = Field(ge=1, le=5)
     comment: str = ""
     deviceId: str
+
+
+class RemedySubmissionBody(BaseModel):
+    deviceId: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=2, max_length=120)
+    scientificName: str = Field(default="", max_length=200)
+    localNames: dict[str, str] = Field(default_factory=dict)
+    category: str = Field(min_length=2, max_length=80)
+    description: str = Field(min_length=10, max_length=1000)
+    usage: str = Field(min_length=10, max_length=1000)
+    preparation: str = Field(min_length=10, max_length=1000)
+    dosage: str = Field(min_length=5, max_length=500)
+    warning: str = Field(min_length=10, max_length=1000)
+    evidenceSource: str = Field(min_length=5, max_length=500)
+    studyUrl: str = Field(default="", max_length=500)
+    tags: list[str] = Field(default_factory=list, max_length=20)
+
+
+class RemedyModerationBody(BaseModel):
+    action: str
+    moderationNote: str = Field(default="", max_length=1000)
 
 
 class OrderStatusBody(BaseModel):
@@ -484,6 +543,103 @@ def list_products(vendorId: Optional[str] = None):
     return {"products": [row_to_product(row) for row in rows]}
 
 
+def row_to_remedy_submission(row) -> dict:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "scientificName": row["scientific_name"],
+        "localNames": json.loads(row["local_names"] or "{}"),
+        "category": row["category"],
+        "description": row["description"],
+        "usage": row["usage"],
+        "preparation": row["preparation"],
+        "dosage": row["dosage"],
+        "warning": row["warning"],
+        "evidenceSource": row["evidence_source"],
+        "studyUrl": row["study_url"],
+        "priceCents": 0,
+        "tags": json.loads(row["tags"] or "[]"),
+        "status": row["status"],
+        "createdAt": row["created_at"],
+    }
+
+
+@app.get("/api/catalog/remedies")
+def list_approved_remedies():
+    with db() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM remedy_submissions
+            WHERE status = 'approved'
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+    return {"remedies": [row_to_remedy_submission(row) for row in rows]}
+
+
+@app.post("/api/remedy-submissions")
+def submit_remedy(body: RemedySubmissionBody):
+    ensure_device(body.deviceId)
+    if len(body.localNames) > 10:
+        raise HTTPException(status_code=400, detail="Too many local names.")
+    if any(len(key) > 10 or len(value) > 120 for key, value in body.localNames.items()):
+        raise HTTPException(status_code=400, detail="Local names are too long.")
+    if any(len(tag) > 50 or not tag.strip() for tag in body.tags):
+        raise HTTPException(status_code=400, detail="Tags must be non-empty and short.")
+    if body.studyUrl and not body.studyUrl.startswith(("https://", "http://")):
+        raise HTTPException(status_code=400, detail="Study URL must use http or https.")
+
+    submission_id = f"remedy-submission-{uuid.uuid4()}"
+    now = utc_now()
+    with db() as conn:
+        recent = conn.execute(
+            """
+            SELECT COUNT(*) FROM remedy_submissions
+            WHERE device_id = ? AND created_at > ?
+            """,
+            (body.deviceId, (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()),
+        ).fetchone()[0]
+        if recent >= 5:
+            raise HTTPException(
+                status_code=429,
+                detail="Submission limit reached. Please try again tomorrow.",
+            )
+        conn.execute(
+            """
+            INSERT INTO remedy_submissions (
+              id, device_id, name, scientific_name, local_names, category,
+              description, usage, preparation, dosage, warning, evidence_source,
+              study_url, tags, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+            """,
+            (
+                submission_id,
+                body.deviceId,
+                body.name.strip(),
+                body.scientificName.strip(),
+                json.dumps(body.localNames),
+                body.category.strip(),
+                body.description.strip(),
+                body.usage.strip(),
+                body.preparation.strip(),
+                body.dosage.strip(),
+                body.warning.strip(),
+                body.evidenceSource.strip(),
+                body.studyUrl.strip(),
+                json.dumps([tag.strip() for tag in body.tags]),
+                now,
+            ),
+        )
+    audit(
+        "remedy_submitted",
+        actor_type="device",
+        actor_id=body.deviceId,
+        target_type="remedy_submission",
+        target_id=submission_id,
+    )
+    return {"submissionId": submission_id, "status": "pending"}
+
+
 @app.get("/api/sync/catalog")
 def sync_catalog(since: str = "1970-01-01T00:00:00.000Z"):
     with db() as conn:
@@ -525,17 +681,108 @@ def full_catalog():
     }
 
 
+def account_payload(row) -> dict:
+    return {
+        "id": row["id"],
+        "email": row["email"],
+        "phone": row["phone"],
+        "name": row["name"],
+        "allergies": row["allergies"],
+        "emergencyContact": row["emergency_contact"],
+    }
+
+
+@app.post("/api/auth/register")
+def account_register(body: AccountRegisterBody):
+    email = body.email.strip().lower() if body.email else ""
+    phone = normalize_phone(body.phone) if body.phone else ""
+    if not email and not phone:
+        raise HTTPException(status_code=400, detail="Email or phone number is required.")
+    if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(status_code=400, detail="Enter a valid email address.")
+    if phone and not re.fullmatch(r"\+?[0-9]{7,20}", phone):
+        raise HTTPException(status_code=400, detail="Enter a valid phone number.")
+    user_id = f"user-{uuid.uuid4()}"
+    now = utc_now()
+    password_hash = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    with db() as conn:
+        existing = conn.execute(
+            "SELECT id FROM users WHERE (email = ? AND email <> '') OR (phone = ? AND phone <> '')",
+            (email, phone),
+        ).fetchone()
+        if existing:
+            raise HTTPException(status_code=409, detail="An account with those details already exists.")
+        conn.execute(
+            """
+            INSERT INTO users (
+              id, email, phone, password_hash, name, allergies, emergency_contact,
+              created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                email or None,
+                phone or None,
+                password_hash,
+                body.name.strip(),
+                body.allergies.strip(),
+                body.emergencyContact.strip(),
+                now,
+                now,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+    return {"account": account_payload(row), "token": sign_account_token(user_id)}
+
+
+@app.post("/api/auth/login")
+def account_login(body: AccountLoginBody):
+    identifier = body.identifier.strip().lower()
+    normalized_phone = normalize_phone(identifier)
+    with db() as conn:
+        row = conn.execute(
+            "SELECT u.* FROM users u "
+            "WHERE lower(u.email) = ? OR u.phone = ?",
+            (identifier, normalized_phone),
+        ).fetchone()
+    if not row or not bcrypt.checkpw(body.password.encode(), row["password_hash"].encode()):
+        raise HTTPException(status_code=401, detail="Invalid email/phone or password.")
+    return {"account": account_payload(row), "token": sign_account_token(row["id"])}
+
+
+@app.get("/api/auth/me")
+def account_me(account_id: str = Depends(get_account_id)):
+    with db() as conn:
+        row = conn.execute(
+            "SELECT u.* FROM users u "
+            "WHERE u.id = ?",
+            (account_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    return {"account": account_payload(row)}
+
+
 @app.post("/api/devices/register")
-def device_register(body: DeviceRegisterBody):
+def device_register(body: DeviceRegisterBody, authorization: Optional[str] = Header(default=None)):
     import uuid
 
     device_id = body.deviceId or str(uuid.uuid4())
     ensure_device(device_id)
+    account_id = None
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            account_id = get_account_id(authorization)
+        except HTTPException:
+            account_id = None
     with db() as conn:
-        conn.execute(
-            "UPDATE devices SET updated_at = ? WHERE id = ?",
-            (utc_now(), device_id),
-        )
+        if account_id:
+            conn.execute("UPDATE devices SET user_id = ?, updated_at = ? WHERE id = ?", (account_id, utc_now(), device_id))
+        else:
+            conn.execute("UPDATE devices SET updated_at = ? WHERE id = ?", (utc_now(), device_id))
     return {"deviceId": device_id}
 
 
@@ -1179,6 +1426,75 @@ def admin_vendors(_admin: str = Depends(require_admin)):
     with db() as conn:
         rows = conn.execute("SELECT * FROM vendors ORDER BY name ASC").fetchall()
     return {"vendors": [row_to_vendor(row) for row in rows]}
+
+
+@app.get("/api/admin/remedy-submissions")
+def admin_remedy_submissions(
+    status: str = "pending",
+    limit: int = 50,
+    _admin: str = Depends(require_admin),
+):
+    if status not in {"pending", "approved", "rejected", "all"}:
+        raise HTTPException(status_code=400, detail="Invalid submission status.")
+    with db() as conn:
+        if status == "all":
+            rows = conn.execute(
+                "SELECT * FROM remedy_submissions ORDER BY created_at DESC LIMIT ?",
+                (min(limit, 200),),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT * FROM remedy_submissions
+                WHERE status = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (status, min(limit, 200)),
+            ).fetchall()
+    return {"submissions": [row_to_remedy_submission(row) for row in rows]}
+
+
+@app.patch("/api/admin/remedy-submissions/{submission_id}")
+def moderate_remedy_submission(
+    submission_id: str,
+    body: RemedyModerationBody,
+    _admin: str = Depends(require_admin),
+):
+    if body.action not in {"approve", "reject"}:
+        raise HTTPException(status_code=400, detail="Action must be approve or reject.")
+    status = "approved" if body.action == "approve" else "rejected"
+    now = utc_now()
+    with db() as conn:
+        row = conn.execute(
+            "SELECT * FROM remedy_submissions WHERE id = ?",
+            (submission_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Remedy submission not found.")
+        if row["status"] != "pending":
+            raise HTTPException(status_code=409, detail="Submission was already reviewed.")
+        conn.execute(
+            """
+            UPDATE remedy_submissions
+            SET status = ?, moderation_note = ?, reviewed_at = ?, reviewed_by = ?
+            WHERE id = ?
+            """,
+            (status, body.moderationNote.strip(), now, "admin", submission_id),
+        )
+        updated = conn.execute(
+            "SELECT * FROM remedy_submissions WHERE id = ?",
+            (submission_id,),
+        ).fetchone()
+    audit(
+        f"remedy_{status}",
+        actor_type="admin",
+        actor_id="admin",
+        target_type="remedy_submission",
+        target_id=submission_id,
+        details={"moderationNote": body.moderationNote.strip()},
+    )
+    return {"submission": row_to_remedy_submission(updated)}
 
 
 @app.get("/api/admin/metrics")

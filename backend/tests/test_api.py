@@ -12,6 +12,7 @@ _tmp_db = tempfile.mktemp(suffix=".db")
 os.environ["DATABASE_PATH"] = _tmp_db
 
 from app.main import app  # noqa: E402
+import app.main as main_module  # noqa: E402
 from app.database import db, token_digest, utc_now  # noqa: E402
 
 
@@ -32,6 +33,44 @@ def test_health(client):
     assert body["ok"] is True
     assert "vendors" in body
     assert "products" in body
+
+
+def test_account_register_and_login(client):
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Test User",
+            "email": "account@example.com",
+            "password": "strong-password",
+            "allergies": "Peanuts",
+            "emergencyContact": "+254700000000",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["token"]
+    assert response.json()["account"]["name"] == "Test User"
+
+    duplicate = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Other User",
+            "email": "account@example.com",
+            "password": "strong-password",
+        },
+    )
+    assert duplicate.status_code == 409
+
+    login = client.post(
+        "/api/auth/login",
+        json={"identifier": "account@example.com", "password": "strong-password"},
+    )
+    assert login.status_code == 200
+    me = client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {login.json()['token']}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["account"]["allergies"] == "Peanuts"
 
 
 # ── Catalog (public) ────────────────────────────────────────────────
@@ -60,6 +99,51 @@ def test_list_products_by_vendor(client):
     assert r.status_code == 200
     for p in r.json()["products"]:
         assert p["vendorId"] == vid
+
+
+def test_remedy_submission_requires_moderation(client):
+    device_id = client.post("/api/devices/register", json={}).json()["deviceId"]
+    payload = {
+        "deviceId": device_id,
+        "name": "Test herb",
+        "category": "Digestive wellness",
+        "description": "A community food suggestion for occasional discomfort.",
+        "usage": "Use only as supportive information and seek care when needed.",
+        "preparation": "Prepare with clean water according to qualified guidance.",
+        "dosage": "No universal dose; ask a healthcare worker.",
+        "warning": "Do not use during pregnancy or with medicines without advice.",
+        "evidenceSource": "Community reference and clinician review pending",
+        "tags": ["digestive"],
+    }
+    submitted = client.post("/api/remedy-submissions", json=payload)
+    assert submitted.status_code == 200
+    assert submitted.json()["status"] == "pending"
+    assert client.get("/api/catalog/remedies").json()["remedies"] == []
+
+
+def test_admin_can_approve_remedy_submission(client, monkeypatch):
+    monkeypatch.setattr(main_module, "ADMIN_TOKEN", "test-admin-token")
+    device_id = client.post("/api/devices/register", json={}).json()["deviceId"]
+    payload = {
+        "deviceId": device_id,
+        "name": "Approved herb",
+        "category": "General wellness",
+        "description": "A carefully documented community wellness suggestion.",
+        "usage": "Use as supportive information and consult a healthcare worker.",
+        "preparation": "Prepare safely with clean equipment and water.",
+        "dosage": "No universal dose; follow professional guidance.",
+        "warning": "Stop if symptoms worsen and seek professional care.",
+        "evidenceSource": "Published reference for moderation test",
+    }
+    submission_id = client.post("/api/remedy-submissions", json=payload).json()["submissionId"]
+    response = client.patch(
+        f"/api/admin/remedy-submissions/{submission_id}",
+        json={"action": "approve", "moderationNote": "Reviewed"},
+        headers={"Authorization": f"Bearer {main_module.ADMIN_TOKEN}"},
+    )
+    assert response.status_code == 200
+    remedies = client.get("/api/catalog/remedies").json()["remedies"]
+    assert remedies[0]["name"] == "Approved herb"
 
 
 # ── Sync ────────────────────────────────────────────────────────────

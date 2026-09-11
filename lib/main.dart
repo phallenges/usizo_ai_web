@@ -1,9 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'l10n/localized.dart';
 import 'models/remedy.dart';
+import 'screens/app_tour_screen.dart';
+import 'screens/account_setup_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/app_store.dart';
@@ -27,6 +30,8 @@ Future<void> main() async {
   final vendorStore = VendorStore(backendApi: backendApi);
   await vendorStore.load();
   final remedies = await RemedyCatalog.load();
+  final contributedRemedies = await backendApi.fetchApprovedRemedies();
+  final allRemedies = [...remedies, ...contributedRemedies];
 
   // Initialize ML services — ONNX may fail on low-end devices,
   // so it falls back to keyword-based matching gracefully.
@@ -39,15 +44,19 @@ Future<void> main() async {
 
   // Pre-initialize ML in background (non-blocking). Keyword matching is used
   // until ONNX is ready or if the model cannot be loaded on this device.
-  unawaited(checker.initialize(remedies));
+  unawaited(checker.initialize(allRemedies));
 
   // Switch to the real app
   runApp(
     UsizoAiApp(
       store: store,
       vendorStore: vendorStore,
-      remedies: remedies,
+      remedies: allRemedies,
       checker: checker,
+      tourComplete: (await SharedPreferences.getInstance())
+              .getBool(AppTourScreen.completedKey) ??
+          false,
+      accountReady: await backendApi.hasAccount(),
     ),
   );
 }
@@ -58,6 +67,8 @@ class UsizoAiApp extends StatelessWidget {
     required this.vendorStore,
     required this.remedies,
     required this.checker,
+    required this.tourComplete,
+    required this.accountReady,
     super.key,
   });
 
@@ -65,6 +76,8 @@ class UsizoAiApp extends StatelessWidget {
   final VendorStore vendorStore;
   final List<Remedy> remedies;
   final SymptomChecker checker;
+  final bool tourComplete;
+  final bool accountReady;
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +102,9 @@ class UsizoAiApp extends StatelessWidget {
               fillColor: Colors.white,
             ),
           ),
-          home: HomeScreen(
+          home: _TourGate(
+            tourComplete: tourComplete,
+            accountReady: accountReady,
             store: store,
             vendorStore: vendorStore,
             remedies: remedies,
@@ -101,4 +116,85 @@ class UsizoAiApp extends StatelessWidget {
   }
 }
 
+class _TourGate extends StatefulWidget {
+  const _TourGate({
+    required this.tourComplete,
+    required this.accountReady,
+    required this.store,
+    required this.vendorStore,
+    required this.remedies,
+    required this.checker,
+  });
 
+  final bool tourComplete;
+  final bool accountReady;
+  final AppStore store;
+  final VendorStore vendorStore;
+  final List<Remedy> remedies;
+  final SymptomChecker checker;
+
+  @override
+  State<_TourGate> createState() => _TourGateState();
+}
+
+class _TourGateState extends State<_TourGate> {
+  late var _complete = widget.tourComplete;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_complete) {
+      return AppTourScreen(
+        onComplete: () => setState(() => _complete = true),
+      );
+    }
+    return _AccountGate(
+      accountReady: widget.accountReady,
+      store: widget.store,
+      vendorStore: widget.vendorStore,
+      remedies: widget.remedies,
+      checker: widget.checker,
+    );
+  }
+}
+
+class _AccountGate extends StatefulWidget {
+  const _AccountGate({
+    required this.accountReady,
+    required this.store,
+    required this.vendorStore,
+    required this.remedies,
+    required this.checker,
+  });
+
+  final bool accountReady;
+  final AppStore store;
+  final VendorStore vendorStore;
+  final List<Remedy> remedies;
+  final SymptomChecker checker;
+
+  @override
+  State<_AccountGate> createState() => _AccountGateState();
+}
+
+class _AccountGateState extends State<_AccountGate> {
+  late var _ready = widget.accountReady;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return AccountSetupScreen(
+        api: widget.store.backendApi,
+        onComplete: () {
+          unawaited(widget.store.load());
+          setState(() => _ready = true);
+        },
+      );
+    }
+    return HomeScreen(
+      store: widget.store,
+      vendorStore: widget.vendorStore,
+      remedies: widget.remedies,
+      checker: widget.checker,
+    );
+  }
+}

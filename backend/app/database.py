@@ -119,6 +119,17 @@ def db():
 
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE,
+  phone TEXT UNIQUE,
+  password_hash TEXT NOT NULL,
+  name TEXT NOT NULL,
+  allergies TEXT DEFAULT '',
+  emergency_contact TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS vendors (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -152,6 +163,7 @@ CREATE TABLE IF NOT EXISTS products (
 );
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY,
+  user_id TEXT REFERENCES users(id),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -198,6 +210,27 @@ CREATE TABLE IF NOT EXISTS reviews (
   comment TEXT DEFAULT '',
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS remedy_submissions (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL REFERENCES devices(id),
+  name TEXT NOT NULL,
+  scientific_name TEXT DEFAULT '',
+  local_names TEXT DEFAULT '{}',
+  category TEXT NOT NULL,
+  description TEXT NOT NULL,
+  usage TEXT NOT NULL,
+  preparation TEXT NOT NULL,
+  dosage TEXT NOT NULL,
+  warning TEXT NOT NULL,
+  evidence_source TEXT NOT NULL,
+  study_url TEXT DEFAULT '',
+  tags TEXT DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'pending',
+  moderation_note TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  reviewed_at TEXT,
+  reviewed_by TEXT DEFAULT ''
+);
 CREATE TABLE IF NOT EXISTS activation_tokens (
   token_hash TEXT PRIMARY KEY,
   reference TEXT NOT NULL UNIQUE,
@@ -223,8 +256,11 @@ CREATE INDEX IF NOT EXISTS idx_orders_device_created
   ON orders(device_id, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_vendor_device
   ON reviews(vendor_id, device_id);
+CREATE INDEX IF NOT EXISTS idx_remedy_submissions_status_created
+  ON remedy_submissions(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_created
   ON audit_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
 """
 
 
@@ -243,6 +279,7 @@ def _postgres_schema(conn: PostgresConnection) -> None:
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_instructions TEXT DEFAULT ''")
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_instructions TEXT DEFAULT ''")
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS vendor_notes TEXT DEFAULT ''")
+        conn.execute("ALTER TABLE devices ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id)")
     finally:
         conn.execute("SELECT pg_advisory_unlock(837421)")
 
@@ -273,6 +310,9 @@ def init_schema() -> None:
         }.items():
             if column not in order_columns:
                 conn.execute(f"ALTER TABLE orders ADD COLUMN {column} {definition}")
+        device_columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)")}
+        if "user_id" not in device_columns:
+            conn.execute("ALTER TABLE devices ADD COLUMN user_id TEXT REFERENCES users(id)")
 
 
 def token_digest(token: str) -> str:

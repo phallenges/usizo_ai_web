@@ -6,6 +6,7 @@ import '../services/app_store.dart';
 import '../services/vendor_store.dart';
 import 'activate_screen.dart';
 import 'payment_details_screen.dart';
+import 'remedy_submission_screen.dart';
 import 'vendor_auth_screen.dart';
 import 'vendor_dashboard_screen.dart';
 import '../services/integration_stubs.dart';
@@ -112,6 +113,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _openRemedySubmission() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RemedySubmissionScreen(api: widget.store.backendApi),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -163,6 +173,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: save,
             icon: const Icon(Icons.save_outlined),
             label: Text(context.tr('profile.saveProfile')),
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.volunteer_activism_outlined),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Contribute to the remedy library',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Share a carefully researched remedy or food-based wellness suggestion. Submissions are reviewed before they are published.',
+                  ),
+                  const SizedBox(height: 12),
+                  OutlinedButton(
+                    onPressed: _openRemedySubmission,
+                    child: const Text('Suggest a remedy'),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 24),
           AnimatedBuilder(
