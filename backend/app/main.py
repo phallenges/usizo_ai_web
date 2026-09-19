@@ -14,7 +14,7 @@ import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -394,6 +394,25 @@ class OrderConfirmBody(BaseModel):
 
 
 ADMIN_HTML = Path(__file__).parent / "static" / "admin.html"
+LANDING_HTML = Path(__file__).parent / "static" / "index.html"
+APK_DOWNLOAD_URL = os.getenv(
+    "APK_DOWNLOAD_URL",
+    "https://github.com/phallenges/usizo_ai_web/releases/latest/download/app-release.apk",
+).strip()
+
+
+@app.get("/")
+def landing_page():
+    if not LANDING_HTML.is_file():
+        raise HTTPException(status_code=404, detail="Landing page not found.")
+    return FileResponse(str(LANDING_HTML), media_type="text/html")
+
+
+@app.get("/download")
+def download_apk():
+    if not APK_DOWNLOAD_URL.startswith(("https://", "http://")):
+        raise HTTPException(status_code=503, detail="APK download is not configured.")
+    return RedirectResponse(APK_DOWNLOAD_URL, status_code=302)
 
 
 @app.get("/admin")

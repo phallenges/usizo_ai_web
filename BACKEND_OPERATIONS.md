@@ -11,6 +11,13 @@ least 32 characters, and set the exact `CORS_ALLOWED_ORIGINS` for the deployed w
 
 Run the API from `backend/` with `py -m uvicorn app.main:app --host 0.0.0.0 --port 3000` behind HTTPS at a reverse proxy. Production requires a managed PostgreSQL database configured through `DATABASE_URL`; SQLite is local-development/test only. Use a TLS-enabled connection string from the provider (for example, one containing `sslmode=require`) and keep the pool within the provider's connection limit with `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX`.
 
+The public landing page is served at `/`. The `/download` endpoint redirects to
+the current Android APK release. Set `APK_DOWNLOAD_URL` to the exact HTTPS
+download URL for the published APK (the default points to the latest
+`app-release.apk` asset in this repository's GitHub Releases). Keep the APK in a
+release or object store rather than committing the generated binary to the
+repository or bundling it into the API image.
+
 ## Free preview deployment
 
 The repository includes `render.yaml` and `backend/Dockerfile` for a no-cost
