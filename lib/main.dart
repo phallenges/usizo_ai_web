@@ -75,9 +75,11 @@ class UsizoAiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const forest = Color(0xff153f36);
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xff087f70),
+      seedColor: forest,
       brightness: Brightness.light,
+      surface: const Color(0xfff5f2ea),
     );
     return AnimatedBuilder(
       animation: store,
@@ -89,11 +91,49 @@ class UsizoAiApp extends StatelessWidget {
           theme: ThemeData(
             colorScheme: colorScheme,
             useMaterial3: true,
-            scaffoldBackgroundColor: const Color(0xfff7faf9),
-            inputDecorationTheme: const InputDecorationTheme(
-              border: OutlineInputBorder(),
+            scaffoldBackgroundColor: const Color(0xfff5f2ea),
+            fontFamily: 'sans',
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xfff5f2ea),
+              foregroundColor: forest,
+              elevation: 0,
+              centerTitle: false,
+            ),
+            cardTheme: CardThemeData(
+              color: Colors.white,
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: const BorderSide(color: Color(0x14153f36)),
+              ),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: const BorderSide(color: Color(0x24153f36)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: const BorderSide(color: Color(0x24153f36)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: const BorderSide(color: forest, width: 1.5),
+              ),
               filled: true,
               fillColor: Colors.white,
+              contentPadding: const EdgeInsets.all(18),
+            ),
+            navigationBarTheme: NavigationBarThemeData(
+              backgroundColor: const Color(0xff153f36),
+              indicatorColor: const Color(0xffd7ed71),
+              labelTextStyle: WidgetStatePropertyAll(
+                TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+              ),
+              iconTheme: const WidgetStatePropertyAll(
+                IconThemeData(color: Colors.white),
+              ),
             ),
           ),
           home: _TourGate(

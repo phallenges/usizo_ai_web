@@ -114,18 +114,58 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
     final theme = Theme.of(context);
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 36),
         children: [
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: UsizoLogo(size: 48, showText: false),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const UsizoLogo(size: 44, showText: false),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Good morning', style: theme.textTheme.labelLarge),
+                    Text(
+                      widget.store.profile.name.isEmpty
+                          ? 'Your health, in context.'
+                          : widget.store.profile.name,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xff153f36),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(Icons.notifications_none_rounded),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xff153f36),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 24),
+          Text(
+            'A clearer next step starts here.',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              height: .98,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1.2,
+              color: const Color(0xff153f36),
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(
             context.tr('checker.subtitle'),
-            style: theme.textTheme.bodyLarge,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: const Color(0xff66736d),
+            ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           AnimatedBuilder(
             animation: widget.store,
             builder: (context, _) => PremiumBanner(
@@ -140,8 +180,13 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          Text(context.tr('checker.howAreYou'),
-              style: theme.textTheme.titleLarge),
+          Text(
+            context.tr('checker.howAreYou'),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xff153f36),
+            ),
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: controller,
@@ -177,18 +222,28 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
                 .toList(),
           ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: isChecking ? null : () => checkSymptoms(),
-            icon: isChecking
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.search),
-            label: Text(isChecking
-                ? context.tr('checker.analyzing')
-                : context.tr('checker.checkSymptoms')),
+          SizedBox(
+            height: 56,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xff153f36),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              onPressed: isChecking ? null : () => checkSymptoms(),
+              icon: isChecking
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.arrow_forward_rounded),
+              label: Text(isChecking
+                  ? context.tr('checker.analyzing')
+                  : context.tr('checker.checkSymptoms')),
+            ),
           ),
           const SizedBox(height: 10),
           Center(
