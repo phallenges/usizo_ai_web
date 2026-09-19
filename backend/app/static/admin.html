@@ -89,12 +89,14 @@
 <div id="app" class="app hidden">
   <nav class="sidebar">
     <h2>UsizoAI Admin</h2>
-    <button class="active" onclick="showTab('dashboard')">Dashboard</button>
-    <button onclick="showTab('orders')">Orders</button>
-    <button onclick="showTab('tokens')">Plus Tokens</button>
-    <button onclick="showTab('reviews')">Reviews</button>
-    <button onclick="showTab('vendors')">Vendors</button>
-    <button onclick="showTab('audit')">Audit Log</button>
+    <button class="active" onclick="showTab('dashboard', this)">Dashboard</button>
+    <button onclick="showTab('users', this)">Users</button>
+    <button onclick="showTab('orders', this)">Orders</button>
+    <button onclick="showTab('vendors', this)">Vendors</button>
+    <button onclick="showTab('remedies', this)">Remedies</button>
+    <button onclick="showTab('reviews', this)">Reviews</button>
+    <button onclick="showTab('tokens', this)">Plus Tokens</button>
+    <button onclick="showTab('audit', this)">Audit Log</button>
     <button onclick="logout()" style="margin-top:24px; color:#ef4444;">Sign out</button>
   </nav>
 
@@ -103,6 +105,16 @@
     <div id="tab-dashboard">
       <h1>Dashboard</h1>
       <div id="metrics" class="metrics"></div>
+    </div>
+
+    <!-- Users -->
+    <div id="tab-users" class="hidden">
+      <h1>User directory</h1>
+      <div class="toolbar">
+        <input type="text" id="user-search" placeholder="Search name, email, phone, or ID...">
+        <button class="btn-primary" onclick="loadUsers()">Search</button>
+      </div>
+      <div id="users-table"></div>
     </div>
 
     <!-- Orders -->
@@ -148,6 +160,21 @@
       <div id="vendors-table"></div>
     </div>
 
+    <!-- Remedies -->
+    <div id="tab-remedies" class="hidden">
+      <h1>Remedy moderation</h1>
+      <div class="toolbar">
+        <select id="remedy-status-filter">
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="all">All statuses</option>
+        </select>
+        <button class="btn-primary" onclick="loadRemedies()">Refresh</button>
+      </div>
+      <div id="remedies-table"></div>
+    </div>
+
     <!-- Audit -->
     <div id="tab-audit" class="hidden">
       <h1>Audit Log</h1>
@@ -166,6 +193,13 @@
 <script>
 const API = window.location.origin;
 let token = '';
+let orderCache = {};
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[ch]));
+}
 
 async function api(path, opts = {}) {
   const headers = { 'Authorization': `Bearer ${token}`, ...opts.headers };
@@ -204,16 +238,19 @@ async function login() {
 
 document.getElementById('token-input').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
 
-function showTab(name) {
+function showTab(name, button) {
   document.querySelectorAll('.main > div').forEach(d => d.classList.add('hidden'));
   document.getElementById(`tab-${name}`).classList.remove('hidden');
   document.querySelectorAll('.sidebar button').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
+  if (button) button.classList.add('active');
   if (name === 'dashboard') loadDashboard();
+  if (name === 'users') loadUsers();
   if (name === 'orders') loadOrders();
   if (name === 'vendors') loadVendors();
+  if (name === 'remedies') loadRemedies();
   if (name === 'audit') loadAudit();
   if (name === 'reviews') loadReviews();
+  if (name === 'tokens') loadTokens();
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────
@@ -223,15 +260,40 @@ async function loadDashboard() {
     const m = await api('/api/admin/metrics');
     document.getElementById('metrics').innerHTML = `
       <div class="metric-card"><div class="value">${m.totalDevices}</div><div class="label">Total devices</div></div>
+      <div class="metric-card"><div class="value">${m.users}</div><div class="label">Customer accounts</div></div>
       <div class="metric-card"><div class="value">${m.premiumDevices}</div><div class="label">Premium devices</div></div>
       <div class="metric-card"><div class="value">${m.totalOrders}</div><div class="label">Total orders</div></div>
       <div class="metric-card"><div class="value">${m.pendingPaymentProofs}</div><div class="label">Pending payment proofs</div></div>
       <div class="metric-card"><div class="value">${m.pendingActivations}</div><div class="label">Pending activations</div></div>
+      <div class="metric-card"><div class="value">${m.pendingRemedies}</div><div class="label">Remedies to review</div></div>
       <div class="metric-card"><div class="value">${m.vendors}</div><div class="label">Vendors</div></div>
       <div class="metric-card"><div class="value">${m.products}</div><div class="label">Products</div></div>
       <div class="metric-card"><div class="value">${m.reviews}</div><div class="label">Reviews</div></div>
     `;
   } catch (e) { console.error(e); }
+}
+
+// ── Users ───────────────────────────────────────────────────────────
+
+async function loadUsers() {
+  const q = document.getElementById('user-search').value.trim();
+  const url = q ? `/api/admin/users?q=${encodeURIComponent(q)}&limit=200` : '/api/admin/users?limit=200';
+  try {
+    const data = await api(url);
+    document.getElementById('users-table').innerHTML = data.users.length ? `
+      <table>
+        <thead><tr><th>Name</th><th>Contact</th><th>Devices</th><th>Orders</th><th>Plus</th><th>Joined</th><th>Last seen</th></tr></thead>
+        <tbody>${data.users.map(u => `
+          <tr>
+            <td><strong>${escapeHtml(u.name)}</strong><br><small>${escapeHtml(u.id)}</small></td>
+            <td>${escapeHtml(u.email || u.phone || '—')}</td>
+            <td>${u.deviceCount}</td><td>${u.orderCount}</td>
+            <td>${u.hasPremiumDevice ? '<span class="badge badge-confirmed">Plus</span>' : '—'}</td>
+            <td style="font-size:12px">${new Date(u.createdAt).toLocaleDateString()}</td>
+            <td style="font-size:12px">${u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : '—'}</td>
+          </tr>`).join('')}</tbody>
+      </table>` : '<div class="empty">No users found.</div>';
+  } catch (e) { document.getElementById('users-table').innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
 }
 
 // ── Orders ───────────────────────────────────────────────────────────
@@ -244,6 +306,7 @@ async function loadOrders() {
   if (status) url += `&status=${encodeURIComponent(status)}`;
   try {
     const data = await api(url);
+    orderCache = Object.fromEntries(data.orders.map(o => [o.id, o]));
     if (!data.orders.length) {
       document.getElementById('orders-table').innerHTML = '<div class="empty">No orders found.</div>';
       return;
@@ -253,12 +316,12 @@ async function loadOrders() {
         <thead><tr><th>Order</th><th>Reference</th><th>Total</th><th>Status</th><th>Created</th><th></th></tr></thead>
         <tbody>${data.orders.map(o => `
           <tr>
-            <td style="font-family:monospace;font-size:12px">${o.id}</td>
-            <td>${o.reference}</td>
+            <td style="font-family:monospace;font-size:12px">${escapeHtml(o.id)}</td>
+            <td>${escapeHtml(o.reference)}</td>
             <td>$${(o.totalCents/100).toFixed(2)}</td>
-            <td><span class="badge badge-${o.status === 'payment_proof_submitted' ? 'proof' : o.status}">${o.status}</span></td>
+            <td><span class="badge badge-${o.status === 'payment_proof_submitted' ? 'proof' : escapeHtml(o.status)}">${escapeHtml(o.status)}</span></td>
             <td style="font-size:12px">${new Date(o.createdAt).toLocaleDateString()}</td>
-            <td><button class="btn-outline btn-sm" onclick='showOrder(${JSON.stringify(o).replace(/'/g,"&#39;")})'>View</button></td>
+            <td><button class="btn-outline btn-sm" onclick="showOrderById('${encodeURIComponent(o.id)}')">View</button></td>
           </tr>
         `).join('')}</tbody>
       </table>
@@ -266,18 +329,22 @@ async function loadOrders() {
   } catch (e) { console.error(e); }
 }
 
+function showOrderById(encodedId) {
+  showOrder(orderCache[decodeURIComponent(encodedId)]);
+}
+
 function showOrder(order) {
-  const items = order.items.map(i => `${i.name} x${i.quantity} — $${(i.priceCents*i.quantity/100).toFixed(2)}`).join('<br>');
+  const items = order.items.map(i => `${escapeHtml(i.name)} x${i.quantity} — $${(i.priceCents*i.quantity/100).toFixed(2)}`).join('<br>');
   document.getElementById('order-modal-content').innerHTML = `
-    <h2>Order ${order.id}</h2>
-    <p><strong>Reference:</strong> ${order.reference}</p>
-    <p><strong>Status:</strong> <span class="badge badge-${order.status === 'payment_proof_submitted' ? 'proof' : order.status}">${order.status}</span></p>
+    <h2>Order ${escapeHtml(order.id)}</h2>
+    <p><strong>Reference:</strong> ${escapeHtml(order.reference)}</p>
+    <p><strong>Status:</strong> <span class="badge badge-${order.status === 'payment_proof_submitted' ? 'proof' : escapeHtml(order.status)}">${escapeHtml(order.status)}</span></p>
     <p><strong>Total:</strong> $${(order.totalCents/100).toFixed(2)}</p>
     <hr style="margin:12px 0;border:none;border-top:1px solid #e5e7eb">
     <p><strong>Items:</strong></p>
     <p style="font-size:13px">${items}</p>
     ${order.hasPaymentProof ? '<p style="color:var(--success);margin-top:8px">&#10003; Payment proof uploaded</p>' : ''}
-    ${order.paymentRejectionReason ? `<p style="color:var(--danger);margin-top:4px">Rejection reason: ${order.paymentRejectionReason}</p>` : ''}
+    ${order.paymentRejectionReason ? `<p style="color:var(--danger);margin-top:4px">Rejection reason: ${escapeHtml(order.paymentRejectionReason)}</p>` : ''}
     <div style="margin-top:16px;display:flex;gap:8px">
       ${order.status === 'payment_proof_submitted' ? `
         <button class="btn-success btn-sm" onclick="reviewPayment('${order.id}','confirmed')">Approve payment</button>
@@ -293,7 +360,7 @@ function closeModal() { document.getElementById('order-modal').classList.add('hi
 
 async function reviewPayment(orderId, status) {
   try {
-    await api(`/api/vendors/me/orders/${orderId}/payment-proof`, { method: 'PATCH', body: { status, rejectionReason: '' } });
+    await api(`/api/admin/orders/${orderId}`, { method: 'PATCH', body: { status, rejectionReason: '' } });
     closeModal(); loadOrders();
   } catch (e) { alert(e.message); }
 }
@@ -302,7 +369,7 @@ async function rejectPayment(orderId) {
   const reason = prompt('Reason for rejection:');
   if (reason === null) return;
   try {
-    await api(`/api/vendors/me/orders/${orderId}/payment-proof`, { method: 'PATCH', body: { status: 'payment_rejected', rejectionReason: reason } });
+    await api(`/api/admin/orders/${orderId}`, { method: 'PATCH', body: { status: 'payment_rejected', rejectionReason: reason } });
     closeModal(); loadOrders();
   } catch (e) { alert(e.message); }
 }
@@ -327,6 +394,25 @@ async function issueToken() {
   } catch (e) { alert(e.message); }
 }
 
+async function loadTokens() {
+  try {
+    const data = await api('/api/admin/activation-tokens?status=all&limit=200');
+    const result = document.getElementById('token-result');
+    result.classList.remove('hidden');
+    result.innerHTML = data.tokens.length ? `
+      <table>
+        <thead><tr><th>Reference</th><th>Status</th><th>Created</th><th>Redeemed</th></tr></thead>
+        <tbody>${data.tokens.map(t => `
+          <tr>
+            <td>${escapeHtml(t.reference)}</td>
+            <td><span class="badge badge-${t.status === 'redeemed' ? 'confirmed' : 'pending'}">${t.status}</span></td>
+            <td style="font-size:12px">${new Date(t.createdAt).toLocaleString()}</td>
+            <td style="font-size:12px">${t.redeemedAt ? new Date(t.redeemedAt).toLocaleString() : '—'}</td>
+          </tr>`).join('')}</tbody>
+      </table>` : '<div class="empty">No activation tokens issued.</div>';
+  } catch (e) { console.error(e); }
+}
+
 // ── Vendors ──────────────────────────────────────────────────────────
 
 async function loadVendors() {
@@ -337,12 +423,12 @@ async function loadVendors() {
         <thead><tr><th>ID</th><th>Name</th><th>Location</th><th>Phone</th><th>Rating</th><th>Reviews</th></tr></thead>
         <tbody>${data.vendors.map(v => `
           <tr>
-            <td style="font-family:monospace;font-size:12px">${v.id}</td>
-            <td>${v.name}</td>
-            <td>${v.location}</td>
-            <td>${v.phone}</td>
+            <td style="font-family:monospace;font-size:12px">${escapeHtml(v.id)}</td>
+            <td>${escapeHtml(v.name)}</td>
+            <td>${escapeHtml(v.location)}</td>
+            <td>${escapeHtml(v.phone)}</td>
             <td>${v.rating > 0 ? v.rating.toFixed(1) + ' ★' : 'New'}</td>
-            <td>${v.reviewCount}</td>
+            <td>${v.reviewCount} · ${v.productCount} products · ${v.orderCount} orders</td>
           </tr>
         `).join('')}</tbody>
       </table>
@@ -350,16 +436,44 @@ async function loadVendors() {
   } catch (e) { console.error(e); }
 }
 
+// ── Remedies ─────────────────────────────────────────────────────────
+
+async function loadRemedies() {
+  const status = document.getElementById('remedy-status-filter').value;
+  try {
+    const data = await api(`/api/admin/remedy-submissions?status=${status}&limit=200`);
+    document.getElementById('remedies-table').innerHTML = data.submissions.length ? `
+      <table>
+        <thead><tr><th>Remedy</th><th>Category</th><th>Status</th><th>Submitted</th><th>Safety summary</th><th></th></tr></thead>
+        <tbody>${data.submissions.map(r => `
+          <tr>
+            <td><strong>${escapeHtml(r.name)}</strong><br><small>${escapeHtml(r.scientificName || '')}</small></td>
+            <td>${escapeHtml(r.category)}</td>
+            <td><span class="badge badge-${r.status}">${r.status}</span></td>
+            <td style="font-size:12px">${new Date(r.createdAt).toLocaleDateString()}</td>
+            <td>${escapeHtml(r.warning)}</td>
+            <td>${r.status === 'pending' ? `
+              <button class="btn-success btn-sm" onclick="moderateRemedy('${r.id}', 'approve')">Approve</button>
+              <button class="btn-danger btn-sm" onclick="moderateRemedy('${r.id}', 'reject')">Reject</button>` : ''}</td>
+          </tr>`).join('')}</tbody>
+      </table>` : '<div class="empty">No submissions found.</div>';
+  } catch (e) { document.getElementById('remedies-table').innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
+}
+
+async function moderateRemedy(id, action) {
+  const note = prompt(`${action === 'approve' ? 'Approval' : 'Rejection'} note (optional):`, '');
+  if (note === null) return;
+  try {
+    await api(`/api/admin/remedy-submissions/${id}`, { method: 'PATCH', body: { action, moderationNote: note } });
+    loadRemedies(); loadDashboard();
+  } catch (e) { alert(e.message); }
+}
+
 // ── Reviews ──────────────────────────────────────────────────────────
 
 async function loadReviews() {
   try {
-    const vendors = await api('/api/admin/vendors');
-    let allReviews = [];
-    for (const v of vendors.vendors) {
-      const data = await api(`/api/vendors/${v.id}/reviews`);
-      allReviews.push(...data.reviews.map(r => ({ ...r, vendorName: v.name })));
-    }
+    const allReviews = (await api('/api/admin/reviews?limit=200')).reviews;
     if (!allReviews.length) {
       document.getElementById('reviews-table').innerHTML = '<div class="empty">No reviews yet.</div>';
       return;
@@ -369,12 +483,12 @@ async function loadReviews() {
         <thead><tr><th>Vendor</th><th>Rating</th><th>Comment</th><th>Device</th><th>Date</th><th></th></tr></thead>
         <tbody>${allReviews.map(r => `
           <tr>
-            <td>${r.vendorName}</td>
+            <td>${escapeHtml(r.vendorName)}</td>
             <td>${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td>
-            <td>${r.comment || '<em>—</em>'}</td>
-            <td style="font-family:monospace;font-size:11px">${r.deviceId}</td>
+            <td>${r.comment ? escapeHtml(r.comment) : '<em>—</em>'}</td>
+            <td style="font-family:monospace;font-size:11px">${escapeHtml(r.deviceId)}</td>
             <td style="font-size:12px">${new Date(r.createdAt).toLocaleDateString()}</td>
-            <td><button class="btn-danger btn-sm" onclick="deleteReview('${r.id}','${r.vendorName}')">Delete</button></td>
+            <td><button class="btn-danger btn-sm" onclick="deleteReview('${encodeURIComponent(r.id)}','${encodeURIComponent(r.vendorName)}')">Delete</button></td>
           </tr>
         `).join('')}</tbody>
       </table>
@@ -383,6 +497,8 @@ async function loadReviews() {
 }
 
 async function deleteReview(id, vendor) {
+  id = decodeURIComponent(id);
+  vendor = decodeURIComponent(vendor);
   if (!confirm(`Delete this review from ${vendor}?`)) return;
   try {
     await api(`/api/admin/reviews/${id}`, { method: 'DELETE' });
@@ -405,10 +521,10 @@ async function loadAudit() {
         <tbody>${data.events.map(e => `
           <tr>
             <td style="font-size:12px;white-space:nowrap">${new Date(e.createdAt).toLocaleString()}</td>
-            <td><span style="font-weight:600">${e.action}</span></td>
-            <td>${e.actorType}${e.actorId ? ': ' + e.actorId : ''}</td>
-            <td>${e.targetType}${e.targetId ? ': ' + e.targetId : ''}</td>
-            <td style="font-size:12px;font-family:monospace">${JSON.stringify(e.details)}</td>
+            <td><span style="font-weight:600">${escapeHtml(e.action)}</span></td>
+            <td>${escapeHtml(e.actorType)}${e.actorId ? ': ' + escapeHtml(e.actorId) : ''}</td>
+            <td>${escapeHtml(e.targetType)}${e.targetId ? ': ' + escapeHtml(e.targetId) : ''}</td>
+            <td style="font-size:12px;font-family:monospace">${escapeHtml(JSON.stringify(e.details))}</td>
           </tr>
         `).join('')}</tbody>
       </table>

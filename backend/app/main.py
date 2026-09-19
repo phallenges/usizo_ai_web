@@ -1,4 +1,5 @@
 import json
+import hmac
 import logging
 import os
 import re
@@ -39,6 +40,7 @@ PAYMENT_PROOF_DIR.mkdir(parents=True, exist_ok=True)
 load_dotenv()
 
 JWT_SECRET = os.getenv("JWT_SECRET")
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()
 JWT_ALG = "HS256"
 JWT_TTL_HOURS = int(os.getenv("JWT_TTL_HOURS", "12"))
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
@@ -107,6 +109,10 @@ async def lifespan(app: FastAPI):
         ("postgres://", "postgresql://")
     ):
         raise RuntimeError("DATABASE_URL must be a PostgreSQL URL in production.")
+    if ENVIRONMENT == "production" and len(ADMIN_TOKEN) < 32:
+        raise RuntimeError(
+            "ADMIN_TOKEN must be set to a random value of at least 32 characters in production."
+        )
     init_schema()
     if ENVIRONMENT == "production":
         _ensure_production_supplier()
@@ -409,7 +415,13 @@ def landing_page():
     return FileResponse(str(LANDING_HTML), media_type="text/html")
 
 
+@app.get("/index.html", include_in_schema=False)
+def landing_page_alias():
+    return landing_page()
+
+
 @app.get("/favicon.png")
+@app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     if not FAVICON.is_file():
         raise HTTPException(status_code=404, detail="Favicon not found.")
@@ -424,10 +436,17 @@ def download_apk():
 
 
 @app.get("/admin")
+@app.get("/admin/", include_in_schema=False)
 def admin_dashboard():
     if not ADMIN_HTML.is_file():
         raise HTTPException(status_code=404, detail="Admin dashboard not found.")
     return FileResponse(str(ADMIN_HTML), media_type="text/html")
+
+
+@app.get("/api", include_in_schema=False)
+@app.get("/api/", include_in_schema=False)
+def api_status():
+    return {"ok": True, "service": "usizoai-api", "serverTime": utc_now()}
 
 
 @app.get("/health")
@@ -1488,16 +1507,13 @@ def list_vendor_reviews(vendor_id: str):
 
 # ── Admin ────────────────────────────────────────────────────────────
 
-ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
-
-
 def require_admin(authorization: Optional[str] = Header(default=None)) -> str:
-    """Simple bearer-token admin auth. In production, swap for a proper admin JWT."""
+    """Authenticate the operations dashboard with the configured bearer secret."""
     if not ADMIN_TOKEN:
         raise HTTPException(status_code=503, detail="Admin access not configured.")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Admin authentication required.")
-    if authorization[7:] != ADMIN_TOKEN:
+    if not hmac.compare_digest(authorization[7:], ADMIN_TOKEN):
         raise HTTPException(status_code=403, detail="Invalid admin token.")
     return "admin"
 
@@ -1515,12 +1531,17 @@ def audit(action: str, actor_type: str = "system", actor_id: str = "",
 
 
 class AdminTokenBody(BaseModel):
-    reference: str
+    reference: str = Field(min_length=1, max_length=200)
     note: str = ""
 
 
 class AdminLoginBody(BaseModel):
-    token: str
+    token: str = Field(min_length=1, max_length=500)
+
+
+class AdminOrderUpdateBody(BaseModel):
+    status: str
+    rejectionReason: str = Field(default="", max_length=500)
 
 
 @app.post("/api/admin/login")
@@ -1528,9 +1549,65 @@ def admin_login(body: AdminLoginBody):
     """Validate the admin token and return a session."""
     if not ADMIN_TOKEN:
         raise HTTPException(status_code=503, detail="Admin access not configured.")
-    if body.token != ADMIN_TOKEN:
+    if not hmac.compare_digest(body.token, ADMIN_TOKEN):
         raise HTTPException(status_code=401, detail="Invalid admin token.")
     return {"ok": True}
+
+
+@app.get("/api/admin/users")
+def admin_users(
+    q: Optional[str] = None,
+    limit: int = 100,
+    _admin: str = Depends(require_admin),
+):
+    """Return a safe customer directory without password or medical secrets."""
+    conditions = ["1=1"]
+    params: list = []
+    if q and q.strip():
+        search = f"%{q.strip().lower()}%"
+        conditions.append(
+            "(lower(u.name) LIKE ? OR lower(COALESCE(u.email, '')) LIKE ? "
+            "OR u.phone LIKE ? OR u.id LIKE ?)"
+        )
+        params.extend([search, search, f"%{q.strip()}%", f"%{q.strip()}%"])
+    with db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+              u.id, u.email, u.phone, u.name, u.created_at, u.updated_at,
+              COUNT(DISTINCT d.id) AS device_count,
+              COUNT(DISTINCT o.id) AS order_count,
+              COALESCE(MAX(CASE WHEN s.is_premium = 1 THEN 1 ELSE 0 END), 0)
+                AS has_premium_device,
+              MAX(d.updated_at) AS last_seen_at
+            FROM users u
+            LEFT JOIN devices d ON d.user_id = u.id
+            LEFT JOIN subscriptions s ON s.device_id = d.id
+            LEFT JOIN orders o ON o.device_id = d.id
+            WHERE {" AND ".join(conditions)}
+            GROUP BY u.id, u.email, u.phone, u.name, u.created_at, u.updated_at
+            ORDER BY u.created_at DESC
+            LIMIT ?
+            """,
+            (*params, min(max(limit, 1), 500)),
+        ).fetchall()
+    return {
+        "users": [
+            {
+                "id": row["id"],
+                "email": row["email"],
+                "phone": row["phone"],
+                "name": row["name"],
+                "createdAt": row["created_at"],
+                "updatedAt": row["updated_at"],
+                "deviceCount": row["device_count"],
+                "orderCount": row["order_count"],
+                "hasPremiumDevice": row["has_premium_device"] == 1,
+                "lastSeenAt": row["last_seen_at"],
+            }
+            for row in rows
+        ]
+    }
 
 
 @app.get("/api/admin/orders")
@@ -1561,11 +1638,125 @@ def admin_orders(
     return {"orders": [order_payload(row) for row in rows]}
 
 
+@app.patch("/api/admin/orders/{order_id}")
+def admin_update_order(
+    order_id: str,
+    body: AdminOrderUpdateBody,
+    _admin: str = Depends(require_admin),
+):
+    """Apply a controlled order transition from the operations dashboard."""
+    valid = {
+        "pending",
+        "payment_proof_submitted",
+        "payment_rejected",
+        "confirmed",
+        "delivered",
+        "cancelled",
+    }
+    if body.status not in valid:
+        raise HTTPException(status_code=400, detail="Invalid order status.")
+    transitions = {
+        "pending": {"confirmed", "cancelled"},
+        "payment_proof_submitted": {"confirmed", "payment_rejected", "cancelled"},
+        "payment_rejected": {"confirmed", "cancelled"},
+        "confirmed": {"delivered", "cancelled"},
+        "delivered": set(),
+        "cancelled": set(),
+    }
+    with db() as conn:
+        row = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Order not found.")
+        if body.status != row["status"] and body.status not in transitions[row["status"]]:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot change {row['status']} order to {body.status}.",
+            )
+        now = utc_now()
+        rejection_reason = body.rejectionReason.strip() if body.status == "payment_rejected" else ""
+        conn.execute(
+            """
+            UPDATE orders
+            SET status = ?, payment_rejection_reason = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (body.status, rejection_reason, now, order_id),
+        )
+        updated = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+    audit(
+        "order_status_updated",
+        actor_type="admin",
+        actor_id="admin",
+        target_type="order",
+        target_id=order_id,
+        details={"status": body.status, "rejectionReason": rejection_reason},
+    )
+    return {"order": order_payload(updated)}
+
+
 @app.get("/api/admin/vendors")
 def admin_vendors(_admin: str = Depends(require_admin)):
     with db() as conn:
-        rows = conn.execute("SELECT * FROM vendors ORDER BY name ASC").fetchall()
-    return {"vendors": [row_to_vendor(row) for row in rows]}
+        rows = conn.execute(
+            """
+            SELECT v.*, COUNT(DISTINCT p.id) AS product_count,
+                   COUNT(DISTINCT o.id) AS order_count
+            FROM vendors v
+            LEFT JOIN products p ON p.vendor_id = v.id AND p.deleted_at IS NULL
+            LEFT JOIN orders o ON o.vendor_id = v.id
+            GROUP BY v.id
+            ORDER BY v.name ASC
+            """
+        ).fetchall()
+    return {
+        "vendors": [
+            {
+                **row_to_vendor(row),
+                "productCount": row["product_count"],
+                "orderCount": row["order_count"],
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.get("/api/admin/reviews")
+def admin_reviews(
+    vendor_id: Optional[str] = None,
+    limit: int = 100,
+    _admin: str = Depends(require_admin),
+):
+    conditions = ["1=1"]
+    params: list = []
+    if vendor_id:
+        conditions.append("r.vendor_id = ?")
+        params.append(vendor_id)
+    with db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT r.*, v.name AS vendor_name
+            FROM reviews r
+            JOIN vendors v ON v.id = r.vendor_id
+            WHERE {" AND ".join(conditions)}
+            ORDER BY r.created_at DESC
+            LIMIT ?
+            """,
+            (*params, min(max(limit, 1), 500)),
+        ).fetchall()
+    return {
+        "reviews": [
+            {
+                "id": row["id"],
+                "vendorId": row["vendor_id"],
+                "vendorName": row["vendor_name"],
+                "rating": row["rating"],
+                "comment": row["comment"],
+                "deviceId": row["device_id"],
+                "createdAt": row["created_at"],
+            }
+            for row in rows
+        ]
+    }
 
 
 @app.get("/api/admin/remedy-submissions")
@@ -1640,20 +1831,24 @@ def moderate_remedy_submission(
 @app.get("/api/admin/metrics")
 def admin_metrics(_admin: str = Depends(require_admin)):
     with db() as conn:
+        users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         vendors = conn.execute("SELECT COUNT(*) FROM vendors").fetchone()[0]
         products = conn.execute("SELECT COUNT(*) FROM products WHERE deleted_at IS NULL").fetchone()[0]
         orders = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
         pending_proof = conn.execute("SELECT COUNT(*) FROM orders WHERE status = 'payment_proof_submitted'").fetchone()[0]
         pending_activation = conn.execute("SELECT COUNT(*) FROM activation_tokens WHERE redeemed_at IS NULL").fetchone()[0]
+        pending_remedies = conn.execute("SELECT COUNT(*) FROM remedy_submissions WHERE status = 'pending'").fetchone()[0]
         premium_devices = conn.execute("SELECT COUNT(*) FROM subscriptions WHERE is_premium = 1").fetchone()[0]
         total_devices = conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
         reviews = conn.execute("SELECT COUNT(*) FROM reviews").fetchone()[0]
     return {
+        "users": users,
         "vendors": vendors,
         "products": products,
         "totalOrders": orders,
         "pendingPaymentProofs": pending_proof,
         "pendingActivations": pending_activation,
+        "pendingRemedies": pending_remedies,
         "premiumDevices": premium_devices,
         "totalDevices": total_devices,
         "reviews": reviews,
@@ -1664,16 +1859,62 @@ def admin_metrics(_admin: str = Depends(require_admin)):
 def admin_issue_token(body: AdminTokenBody, _admin: str = Depends(require_admin)):
     """Issue a single-use Plus activation token after EcoCash payment verification."""
     import secrets as _secrets
+    reference = body.reference.strip()
+    if not reference:
+        raise HTTPException(status_code=400, detail="Payment reference is required.")
     token = f"USIZO-{_secrets.token_urlsafe(18).upper()}"
     now = utc_now()
     with db() as conn:
+        if conn.execute(
+            "SELECT 1 FROM activation_tokens WHERE reference = ?", (reference,)
+        ).fetchone():
+            raise HTTPException(status_code=409, detail="That payment reference already has a token.")
         conn.execute(
             "INSERT INTO activation_tokens (token_hash, reference, created_at) VALUES (?, ?, ?)",
-            (token_digest(token), body.reference.strip(), now),
+            (token_digest(token), reference, now),
         )
     audit("activation_token_issued", actor_type="admin", actor_id="admin",
-          target_type="activation_token", details={"reference": body.reference})
-    return {"token": token, "reference": body.reference, "createdAt": now}
+          target_type="activation_token", details={"reference": reference})
+    return {"token": token, "reference": reference, "createdAt": now}
+
+
+@app.get("/api/admin/activation-tokens")
+def admin_activation_tokens(
+    status: str = "all",
+    limit: int = 100,
+    _admin: str = Depends(require_admin),
+):
+    if status not in {"all", "available", "redeemed"}:
+        raise HTTPException(status_code=400, detail="Invalid activation token status.")
+    conditions = []
+    if status == "available":
+        conditions.append("redeemed_at IS NULL")
+    elif status == "redeemed":
+        conditions.append("redeemed_at IS NOT NULL")
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with db() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT reference, redeemed_by_device_id, created_at, redeemed_at
+            FROM activation_tokens
+            {where}
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (min(max(limit, 1), 500),),
+        ).fetchall()
+    return {
+        "tokens": [
+            {
+                "reference": row["reference"],
+                "status": "redeemed" if row["redeemed_at"] else "available",
+                "redeemedByDeviceId": row["redeemed_by_device_id"],
+                "createdAt": row["created_at"],
+                "redeemedAt": row["redeemed_at"],
+            }
+            for row in rows
+        ]
+    }
 
 
 @app.delete("/api/admin/reviews/{review_id}")
