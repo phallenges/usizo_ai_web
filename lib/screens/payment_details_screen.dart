@@ -50,6 +50,10 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
     );
     if (!mounted) return;
     setState(() => submitting = false);
+    if (sent) {
+      referenceController.clear();
+      messageController.clear();
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(sent

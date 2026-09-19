@@ -55,6 +55,7 @@ class _ActivateScreenState extends State<ActivateScreen> {
           duration: Duration(seconds: 3),
         ),
       );
+      controller.clear();
       Navigator.pop(context);
     } else {
       setState(() => error = context.tr('activate.invalidToken'));
