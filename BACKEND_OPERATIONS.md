@@ -13,8 +13,9 @@ Run the API from `backend/` with `py -m uvicorn app.main:app --host 0.0.0.0 --po
 
 The public landing page is served at `/`. The `/download` endpoint redirects to
 the current Android APK release. Set `APK_DOWNLOAD_URL` to the exact HTTPS
-download URL for the published APK (the default points to the latest
-`app-release.apk` asset in this repository's GitHub Releases). Keep the APK in a
+download URL for the published APK (the default points to the `v1.0.0`
+`app-release.apk` asset in this repository's GitHub Releases). Update this
+value when publishing a new release. Keep the APK in a
 release or object store rather than committing the generated binary to the
 repository or bundling it into the API image.
 

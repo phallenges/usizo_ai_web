@@ -397,7 +397,7 @@ ADMIN_HTML = Path(__file__).parent / "static" / "admin.html"
 LANDING_HTML = Path(__file__).parent / "static" / "index.html"
 APK_DOWNLOAD_URL = os.getenv(
     "APK_DOWNLOAD_URL",
-    "https://github.com/phallenges/usizo_ai_web/releases/latest/download/app-release.apk",
+    "https://github.com/phallenges/usizo_ai_web/releases/download/v1.0.0/app-release.apk",
 ).strip()
 
 
