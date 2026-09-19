@@ -395,6 +395,7 @@ class OrderConfirmBody(BaseModel):
 
 ADMIN_HTML = Path(__file__).parent / "static" / "admin.html"
 LANDING_HTML = Path(__file__).parent / "static" / "index.html"
+FAVICON = Path(__file__).parent / "static" / "favicon.png"
 APK_DOWNLOAD_URL = os.getenv(
     "APK_DOWNLOAD_URL",
     "https://github.com/phallenges/usizo_ai_web/releases/download/v1.0.0/UsizoAI.apk",
@@ -406,6 +407,13 @@ def landing_page():
     if not LANDING_HTML.is_file():
         raise HTTPException(status_code=404, detail="Landing page not found.")
     return FileResponse(str(LANDING_HTML), media_type="text/html")
+
+
+@app.get("/favicon.png")
+def favicon():
+    if not FAVICON.is_file():
+        raise HTTPException(status_code=404, detail="Favicon not found.")
+    return FileResponse(str(FAVICON), media_type="image/png")
 
 
 @app.get("/download")
