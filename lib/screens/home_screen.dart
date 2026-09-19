@@ -64,6 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, _) {
           final cartCount = widget.store.cartCount;
           return NavigationBar(
+            height: 76,
             selectedIndex: selectedIndex,
             onDestinationSelected: (index) =>
                 setState(() => selectedIndex = index),
