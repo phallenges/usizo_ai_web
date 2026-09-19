@@ -1,16 +1,64 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/app_store.dart';
 import '../services/payment_service.dart';
 
 /// Screen that shows EcoCash payment details.
 ///
 /// The user sends money manually. There is no "I've paid" button.
 /// They receive an activation token from the admin after payment.
-class PaymentDetailsScreen extends StatelessWidget {
-  const PaymentDetailsScreen({required this.instruction, super.key});
+class PaymentDetailsScreen extends StatefulWidget {
+  const PaymentDetailsScreen({
+    required this.instruction,
+    required this.store,
+    super.key,
+  });
 
   final PaymentInstruction instruction;
+  final AppStore store;
+
+  @override
+  State<PaymentDetailsScreen> createState() => _PaymentDetailsScreenState();
+}
+
+class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
+  final referenceController = TextEditingController();
+  final messageController = TextEditingController();
+  bool submitting = false;
+
+  @override
+  void dispose() {
+    referenceController.dispose();
+    messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitPayment() async {
+    final reference = referenceController.text.trim();
+    final message = messageController.text.trim();
+    if (reference.isEmpty || message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter the EcoCash reference and confirmation message.')),
+      );
+      return;
+    }
+    setState(() => submitting = true);
+    final sent = await widget.store.backendApi.submitPlusPayment(
+      merchantReference: reference,
+      confirmationMessage: message,
+    );
+    if (!mounted) return;
+    setState(() => submitting = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(sent
+            ? 'Payment confirmation sent. We will verify it and send your token.'
+            : 'Could not send confirmation. Please try again.'),
+      ),
+    );
+    if (sent) Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +79,7 @@ class PaymentDetailsScreen extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    instruction.amountLabel,
+                    widget.instruction.amountLabel,
                     style: theme.textTheme.headlineLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: theme.colorScheme.primary,
@@ -39,7 +87,7 @@ class PaymentDetailsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    instruction.description,
+                    widget.instruction.description,
                     style: theme.textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -85,7 +133,7 @@ class PaymentDetailsScreen extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.phone_android),
               title: Text(
-                instruction.ecocashNumber,
+                widget.instruction.ecocashNumber,
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -97,7 +145,7 @@ class PaymentDetailsScreen extends StatelessWidget {
                 tooltip: 'Copy number',
                 onPressed: () {
                   Clipboard.setData(
-                    ClipboardData(text: instruction.ecocashNumber),
+                    ClipboardData(text: widget.instruction.ecocashNumber),
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Number copied')),
@@ -108,17 +156,46 @@ class PaymentDetailsScreen extends StatelessWidget {
           ),
           const SizedBox(height: 32),
 
-          // ── Done button ──────────────────────────────────────────
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Done'),
+          const Text(
+            'After paying, send your EcoCash confirmation',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: referenceController,
+            decoration: const InputDecoration(
+              labelText: 'EcoCash transaction reference',
+              hintText: 'Example: 1234567890',
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: messageController,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Confirmation message',
+              hintText: 'Paste the message EcoCash sent you',
+            ),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: submitting ? null : _submitPayment,
+            icon: submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send_outlined),
+            label: Text(submitting ? 'Sending...' : 'Send confirmation for review'),
           ),
           const SizedBox(height: 16),
 
           // ── Disclaimer ────────────────────────────────────────────
           Text(
-            'Your activation token will be sent to you after payment is verified. '
-            'This usually takes a few minutes.',
+            'Your token will be sent after we verify the payment. Keep this confirmation '
+            'message until your Plus access is activated.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall,
           ),

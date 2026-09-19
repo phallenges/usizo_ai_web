@@ -342,6 +342,11 @@ class ActivateBody(BaseModel):
     token: str
 
 
+class PlusPaymentSubmissionBody(BaseModel):
+    merchantReference: str = Field(min_length=1, max_length=200)
+    confirmationMessage: str = Field(min_length=1, max_length=2000)
+
+
 class OrderBody(BaseModel):
     id: Optional[str] = None
     vendorId: str
@@ -1076,6 +1081,57 @@ def device_activate(device_id: str, body: ActivateBody):
             (now, device_id),
         )
     return {"isPremium": True, "updatedAt": now}
+
+
+@app.post("/api/devices/{device_id}/plus-payment-submissions")
+def submit_plus_payment(
+    device_id: str,
+    body: PlusPaymentSubmissionBody,
+    authorization: Optional[str] = Header(default=None),
+):
+    ensure_device(device_id)
+    user_id = None
+    if authorization and authorization.startswith("Bearer "):
+        try:
+            user_id = get_account_id(authorization)
+        except HTTPException:
+            user_id = None
+    submission_id = f"plus-payment-{uuid.uuid4()}"
+    now = utc_now()
+    with db() as conn:
+        duplicate = conn.execute(
+            """
+            SELECT id FROM plus_payment_submissions
+            WHERE merchant_reference = ? AND status = 'pending'
+            """,
+            (body.merchantReference.strip(),),
+        ).fetchone()
+        if duplicate:
+            raise HTTPException(status_code=409, detail="That EcoCash reference is already awaiting review.")
+        conn.execute(
+            """
+            INSERT INTO plus_payment_submissions
+              (id, device_id, user_id, merchant_reference, confirmation_message, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                submission_id,
+                device_id,
+                user_id,
+                body.merchantReference.strip(),
+                body.confirmationMessage.strip(),
+                now,
+            ),
+        )
+    audit(
+        "plus_payment_submitted",
+        actor_type="customer",
+        actor_id=user_id or device_id,
+        target_type="plus_payment",
+        target_id=submission_id,
+        details={"merchantReference": body.merchantReference.strip()},
+    )
+    return {"id": submission_id, "status": "pending", "createdAt": now}
 
 
 def order_payload(row) -> dict:
@@ -1915,6 +1971,110 @@ def admin_activation_tokens(
             for row in rows
         ]
     }
+
+
+@app.get("/api/admin/plus-payment-submissions")
+def admin_plus_payment_submissions(
+    status: str = "pending",
+    limit: int = 100,
+    _admin: str = Depends(require_admin),
+):
+    if status not in {"pending", "approved", "rejected", "all"}:
+        raise HTTPException(status_code=400, detail="Invalid payment status.")
+    with db() as conn:
+        where = "" if status == "all" else "WHERE p.status = ?"
+        params = () if status == "all" else (status,)
+        rows = conn.execute(
+            f"""
+            SELECT p.*, u.name AS user_name, u.email AS user_email, u.phone AS user_phone
+            FROM plus_payment_submissions p
+            LEFT JOIN users u ON u.id = p.user_id
+            {where}
+            ORDER BY p.created_at DESC
+            LIMIT ?
+            """,
+            (*params, min(limit, 200)),
+        ).fetchall()
+    return {
+        "submissions": [
+            {
+                "id": row["id"],
+                "deviceId": row["device_id"],
+                "userId": row["user_id"],
+                "userName": row["user_name"] or "",
+                "userEmail": row["user_email"] or "",
+                "userPhone": row["user_phone"] or "",
+                "merchantReference": row["merchant_reference"],
+                "confirmationMessage": row["confirmation_message"],
+                "status": row["status"],
+                "adminNote": row["admin_note"] or "",
+                "createdAt": row["created_at"],
+                "reviewedAt": row["reviewed_at"],
+            }
+            for row in rows
+        ]
+    }
+
+
+class PlusPaymentReviewBody(BaseModel):
+    action: str
+    adminNote: str = ""
+
+
+@app.patch("/api/admin/plus-payment-submissions/{submission_id}")
+def review_plus_payment(
+    submission_id: str,
+    body: PlusPaymentReviewBody,
+    _admin: str = Depends(require_admin),
+):
+    if body.action not in {"approve", "reject"}:
+        raise HTTPException(status_code=400, detail="Action must be approve or reject.")
+    now = utc_now()
+    with db() as conn:
+        row = conn.execute(
+            "SELECT * FROM plus_payment_submissions WHERE id = ?",
+            (submission_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Payment submission not found.")
+        if row["status"] != "pending":
+            raise HTTPException(status_code=409, detail="Payment submission was already reviewed.")
+        status = "approved" if body.action == "approve" else "rejected"
+        conn.execute(
+            """
+            UPDATE plus_payment_submissions
+            SET status = ?, admin_note = ?, reviewed_at = ?, reviewed_by = 'admin'
+            WHERE id = ?
+            """,
+            (status, body.adminNote.strip(), now, submission_id),
+        )
+    token = None
+    if body.action == "approve":
+        import secrets as _secrets
+        token = f"USIZO-{_secrets.token_urlsafe(18).upper()}"
+        with db() as conn:
+            conn.execute(
+                "INSERT INTO activation_tokens (token_hash, reference, created_at) VALUES (?, ?, ?)",
+                (token_digest(token), row["merchant_reference"], now),
+            )
+        audit(
+            "plus_payment_approved",
+            actor_type="admin",
+            actor_id="admin",
+            target_type="plus_payment",
+            target_id=submission_id,
+            details={"merchantReference": row["merchant_reference"]},
+        )
+    else:
+        audit(
+            "plus_payment_rejected",
+            actor_type="admin",
+            actor_id="admin",
+            target_type="plus_payment",
+            target_id=submission_id,
+            details={"merchantReference": row["merchant_reference"]},
+        )
+    return {"status": "approved" if body.action == "approve" else "rejected", "token": token}
 
 
 @app.delete("/api/admin/reviews/{review_id}")

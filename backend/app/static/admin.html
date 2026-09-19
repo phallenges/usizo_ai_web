@@ -96,6 +96,7 @@
     <button onclick="showTab('remedies', this)">Remedies</button>
     <button onclick="showTab('reviews', this)">Reviews</button>
     <button onclick="showTab('tokens', this)">Plus Tokens</button>
+    <button onclick="showTab('plus-payments', this)">Plus Payments</button>
     <button onclick="showTab('audit', this)">Audit Log</button>
     <button onclick="logout()" style="margin-top:24px; color:#ef4444;">Sign out</button>
   </nav>
@@ -142,6 +143,20 @@
       <div class="toolbar">
         <input type="text" id="token-ref" placeholder="EcoCash reference">
         <button class="btn-primary" onclick="issueToken()">Issue Token</button>
+      </div>
+
+      <div id="tab-plus-payments" class="hidden">
+        <h1>Plus payment confirmations</h1>
+        <div class="toolbar">
+          <select id="plus-payment-status-filter">
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="all">All statuses</option>
+          </select>
+          <button class="btn-primary" onclick="loadPlusPayments()">Refresh</button>
+        </div>
+        <div id="plus-payments-table"></div>
       </div>
       <div id="token-result" class="hidden" style="margin-bottom:16px;"></div>
       <p style="color:#6b7280; font-size:13px;">Enter the EcoCash transaction reference to issue a single-use Plus activation token.</p>
@@ -251,6 +266,7 @@ function showTab(name, button) {
   if (name === 'audit') loadAudit();
   if (name === 'reviews') loadReviews();
   if (name === 'tokens') loadTokens();
+  if (name === 'plus-payments') loadPlusPayments();
 }
 
 // ── Dashboard ────────────────────────────────────────────────────────
@@ -411,6 +427,44 @@ async function loadTokens() {
           </tr>`).join('')}</tbody>
       </table>` : '<div class="empty">No activation tokens issued.</div>';
   } catch (e) { console.error(e); }
+}
+
+async function loadPlusPayments() {
+  const status = document.getElementById('plus-payment-status-filter').value;
+  try {
+    const data = await api(`/api/admin/plus-payment-submissions?status=${status}&limit=200`);
+    document.getElementById('plus-payments-table').innerHTML = data.submissions.length ? `
+      <table>
+        <thead><tr><th>Customer</th><th>EcoCash reference</th><th>Confirmation</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
+        <tbody>${data.submissions.map(p => `
+          <tr>
+            <td><strong>${escapeHtml(p.userName || 'Unlinked device')}</strong><br><small>${escapeHtml(p.userEmail || p.userPhone || p.deviceId)}</small></td>
+            <td>${escapeHtml(p.merchantReference)}</td>
+            <td style="max-width:300px;white-space:pre-wrap">${escapeHtml(p.confirmationMessage)}</td>
+            <td style="font-size:12px">${new Date(p.createdAt).toLocaleString()}</td>
+            <td><span class="badge badge-${p.status === 'approved' ? 'confirmed' : p.status === 'rejected' ? 'rejected' : 'pending'}">${p.status}</span></td>
+            <td>${p.status === 'pending' ? `
+              <button class="btn-success btn-sm" onclick="reviewPlusPayment('${p.id}', 'approve')">Approve & issue token</button>
+              <button class="btn-danger btn-sm" onclick="reviewPlusPayment('${p.id}', 'reject')">Reject</button>
+            ` : ''}</td>
+          </tr>`).join('')}</tbody>
+      </table>` : '<div class="empty">No payment confirmations found.</div>';
+  } catch (e) { document.getElementById('plus-payments-table').innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
+}
+
+async function reviewPlusPayment(id, action) {
+  const note = prompt(action === 'approve' ? 'Optional verification note:' : 'Reason for rejection:');
+  if (note === null) return;
+  try {
+    const data = await api(`/api/admin/plus-payment-submissions/${id}`, {
+      method: 'PATCH',
+      body: { action, adminNote: note }
+    });
+    if (data.token) {
+      alert(`Payment approved. Send this token to the customer:\n\n${data.token}`);
+    }
+    loadPlusPayments();
+  } catch (e) { alert(e.message); }
 }
 
 // ── Vendors ──────────────────────────────────────────────────────────

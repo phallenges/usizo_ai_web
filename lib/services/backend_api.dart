@@ -388,6 +388,35 @@ class BackendApi {
     } catch (_) {
       return false;
     }
+
+  }
+
+  Future<bool> submitPlusPayment({
+    required String merchantReference,
+    required String confirmationMessage,
+  }) async {
+    if (!isConfigured) return false;
+    await _ensureRegistered();
+    final id = await deviceId();
+    final token = await _accountToken();
+    try {
+      final r = await _request(
+        () => _client.post(
+          Uri.parse('$_baseUrl/api/devices/$id/plus-payment-submissions'),
+          headers: {
+            'Content-Type': 'application/json',
+            if (token != null) 'Authorization': '******',
+          },
+          body: jsonEncode({
+            'merchantReference': merchantReference.trim(),
+            'confirmationMessage': confirmationMessage.trim(),
+          }),
+        ),
+      );
+      return r.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ── Orders ───────────────────────────────────────────────────────

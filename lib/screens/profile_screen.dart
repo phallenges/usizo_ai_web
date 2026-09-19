@@ -95,7 +95,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PaymentDetailsScreen(instruction: instruction),
+        builder: (_) => PaymentDetailsScreen(
+          instruction: instruction,
+          store: widget.store,
+        ),
       ),
     );
   }

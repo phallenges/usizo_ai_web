@@ -240,6 +240,20 @@ CREATE TABLE IF NOT EXISTS activation_tokens (
   created_at TEXT NOT NULL,
   redeemed_at TEXT
 );
+CREATE TABLE IF NOT EXISTS plus_payment_submissions (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL REFERENCES devices(id),
+  user_id TEXT REFERENCES users(id),
+  merchant_reference TEXT NOT NULL,
+  confirmation_message TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  admin_note TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  reviewed_at TEXT,
+  reviewed_by TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_plus_payments_status_created
+  ON plus_payment_submissions(status, created_at DESC);
 CREATE TABLE IF NOT EXISTS audit_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL,
