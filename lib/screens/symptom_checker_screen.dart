@@ -103,7 +103,10 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
 
       widget.store.recordCheck();
       if (mounted) {
-        setState(() => result = checked);
+        setState(() {
+          result = checked;
+          controller.clear();
+        });
       }
     } catch (e) {
       if (mounted) {

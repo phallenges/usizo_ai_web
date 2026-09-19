@@ -71,6 +71,9 @@ class _RemedySubmissionScreenState extends State<RemedySubmissionScreen> {
     if (!mounted) return;
     setState(() => _submitting = false);
     if (success) {
+      for (final controller in _controllers.values) {
+        controller.clear();
+      }
       _showMessage('Submitted for review. It will appear after approval.');
       Navigator.pop(context);
     } else {
