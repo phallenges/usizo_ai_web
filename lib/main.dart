@@ -128,11 +128,21 @@ class UsizoAiApp extends StatelessWidget {
             navigationBarTheme: NavigationBarThemeData(
               backgroundColor: const Color(0xff153f36),
               indicatorColor: const Color(0xffd7ed71),
-              labelTextStyle: WidgetStatePropertyAll(
-                TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+              labelTextStyle: WidgetStateProperty.resolveWith(
+                (states) => TextStyle(
+                  color: states.contains(WidgetState.selected)
+                      ? const Color(0xff153f36)
+                      : Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11,
+                ),
               ),
-              iconTheme: const WidgetStatePropertyAll(
-                IconThemeData(color: Colors.white),
+              iconTheme: WidgetStateProperty.resolveWith(
+                (states) => IconThemeData(
+                  color: states.contains(WidgetState.selected)
+                      ? const Color(0xff153f36)
+                      : Colors.white,
+                ),
               ),
             ),
           ),
