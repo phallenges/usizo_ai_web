@@ -29,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController conditionsController;
   late final TextEditingController medicationsController;
   late final TextEditingController emergencyController;
+  var _medicalInfoExpanded = false;
 
   @override
   void initState() {
@@ -128,57 +129,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
           Text(
-            'Medical information',
-            style: Theme.of(context).textTheme.headlineSmall,
+            'Your profile',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xff153f36),
+                ),
           ),
           const SizedBox(height: 6),
           const Text(
-            'Keep this information up to date so your symptom guidance can be more relevant.',
+            'Manage your care preferences, Plus access, and community contributions.',
           ),
           const SizedBox(height: 22),
-          TextField(
-            controller: allergiesController,
-            decoration: const InputDecoration(
-              labelText: 'Allergies',
-              prefixIcon: const Icon(Icons.warning_amber_outlined),
+          OutlinedButton.icon(
+            onPressed: () => setState(
+              () => _medicalInfoExpanded = !_medicalInfoExpanded,
+            ),
+            icon: Icon(
+              _medicalInfoExpanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.medical_information_outlined,
+            ),
+            label: Text(
+              _medicalInfoExpanded
+                  ? 'Hide medical information'
+                  : 'Medical information',
+            ),
+            style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+              foregroundColor: const Color(0xff153f36),
+              side: const BorderSide(color: Color(0x24153f36)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: conditionsController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Medical conditions',
-              hintText: 'For example: asthma, diabetes, hypertension',
-              prefixIcon: Icon(Icons.medical_information_outlined),
-              alignLabelWithHint: true,
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 220),
+            crossFadeState: _medicalInfoExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: const SizedBox(height: 8),
+            secondChild: Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: allergiesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Allergies',
+                      prefixIcon: Icon(Icons.warning_amber_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: conditionsController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Medical conditions',
+                      hintText: 'For example: asthma, diabetes, hypertension',
+                      prefixIcon: Icon(Icons.medical_information_outlined),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: medicationsController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Current medications',
+                      hintText: 'List medicines or supplements you currently use',
+                      prefixIcon: Icon(Icons.medication_outlined),
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emergencyController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Emergency contact',
+                      prefixIcon: Icon(Icons.contact_phone_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: save,
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Save medical information'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: medicationsController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'Current medications',
-              hintText: 'List medicines or supplements you currently use',
-              prefixIcon: Icon(Icons.medication_outlined),
-              alignLabelWithHint: true,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: emergencyController,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: 'Emergency contact',
-              prefixIcon: Icon(Icons.contact_phone_outlined),
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: save,
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Save medical information'),
           ),
           const SizedBox(height: 24),
           Card(
