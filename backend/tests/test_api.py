@@ -23,7 +23,7 @@ def client():
         yield c
 
 
-# ── Health ──────────────────────────────────────────────────────────
+# â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def test_health(client):
@@ -83,7 +83,7 @@ def test_auth_rate_limit_returns_retry_after(client):
     assert limited.headers["retry-after"]
 
 
-# ── Catalog (public) ────────────────────────────────────────────────
+# â”€â”€ Catalog (public) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def test_list_vendors_starts_empty(client):
@@ -153,7 +153,7 @@ def test_admin_can_approve_remedy_submission(client, monkeypatch):
     assert remedies[0]["name"] == "Approved herb"
 
 
-# ── Sync ────────────────────────────────────────────────────────────
+# â”€â”€ Sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def test_full_catalog_sync(client):
@@ -173,7 +173,7 @@ def test_incremental_sync(client):
     assert "deletedProductIds" in body
 
 
-# ── Vendor auth ─────────────────────────────────────────────────────
+# â”€â”€ Vendor auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def test_vendor_register_and_login(client):
@@ -228,7 +228,7 @@ def test_vendor_login_wrong_pin(client):
     assert r.status_code == 401
 
 
-# ── Vendor profile & products (authenticated) ───────────────────────
+# â”€â”€ Vendor profile & products (authenticated) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def _auth_header(token: str) -> dict:
@@ -310,7 +310,7 @@ def test_product_crud(client):
     assert not any(p["id"] == pid for p in r5.json()["products"])
 
 
-# ── Device & subscription ───────────────────────────────────────────
+# â”€â”€ Device & subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def test_device_register_and_state(client):
@@ -358,6 +358,120 @@ def test_device_check_rate_limit(client):
     assert rc4.json()["allowed"] is False
 
 
+def test_chat_refuses_unrelated_scope_without_using_quota(client, monkeypatch):
+    monkeypatch.setattr(main_module, "LLM_BASE_URL", "")
+    device_id = client.post("/api/devices/register", json={}).json()["deviceId"]
+    response = client.post(
+        "/api/chat",
+        json={
+            "deviceId": device_id,
+            "messages": [{"role": "user", "content": "Tell me a joke about football."}],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["scopeRefused"] is True
+    state = client.get(f"/api/devices/{device_id}/state").json()
+    assert state["chatUsage"]["requestsUsed"] == 0
+
+
+def test_chat_requires_auth_for_linked_device(client, monkeypatch):
+    monkeypatch.setattr(main_module, "LLM_BASE_URL", "https://provider.example")
+    monkeypatch.setattr(main_module, "LLM_API_KEY", "test-key")
+    monkeypatch.setattr(main_module, "LLM_MODEL", "test-model")
+    monkeypatch.setattr(main_module, "_call_llm", lambda messages: "Educational guidance.")
+    account = client.post(
+        "/api/auth/register",
+        json={"name": "Chat User", "email": "chat@example.com", "password": "strong-password"},
+    ).json()
+    device_id = client.post(
+        "/api/devices/register",
+        headers={"Authorization": f"Bearer {account['token']}"},
+        json={},
+    ).json()["deviceId"]
+    response = client.post(
+        "/api/chat",
+        json={
+            "deviceId": device_id,
+            "messages": [{"role": "user", "content": "I have a headache."}],
+        },
+    )
+    assert response.status_code == 401
+
+
+def test_chat_config_error_does_not_consume_quota(client, monkeypatch):
+    monkeypatch.setattr(main_module, "LLM_BASE_URL", "")
+    monkeypatch.setattr(main_module, "LLM_API_KEY", "")
+    monkeypatch.setattr(main_module, "LLM_MODEL", "")
+    device_id = client.post("/api/devices/register", json={}).json()["deviceId"]
+    response = client.post(
+        "/api/chat",
+        json={
+            "deviceId": device_id,
+            "messages": [{"role": "user", "content": "I have a headache."}],
+        },
+    )
+    assert response.status_code == 503
+    assert client.get(f"/api/devices/{device_id}/state").json()["chatUsage"]["requestsUsed"] == 0
+
+
+def test_chat_free_monthly_quota_and_grounding(client, monkeypatch):
+    monkeypatch.setattr(main_module, "LLM_BASE_URL", "https://provider.example")
+    monkeypatch.setattr(main_module, "LLM_API_KEY", "test-key")
+    monkeypatch.setattr(main_module, "LLM_MODEL", "test-model")
+    captured = []
+
+    def fake_llm(messages):
+        captured.extend(messages)
+        return "Please monitor symptoms and seek care if they worsen."
+
+    monkeypatch.setattr(main_module, "_call_llm", fake_llm)
+    device_id = client.post("/api/devices/register", json={}).json()["deviceId"]
+    payload = {
+        "deviceId": device_id,
+        "messages": [{"role": "user", "content": "I have nausea and want app guidance."}],
+    }
+    for _ in range(3):
+        response = client.post("/api/chat", json=payload)
+        assert response.status_code == 200
+    limited = client.post("/api/chat", json=payload)
+    assert limited.status_code == 429
+    assert "this month" in limited.json()["detail"].lower()
+    assert any("Ginger" in message["content"] for message in captured)
+
+
+def test_chat_quota_is_shared_by_authenticated_devices(client, monkeypatch):
+    monkeypatch.setattr(main_module, "LLM_BASE_URL", "https://provider.example")
+    monkeypatch.setattr(main_module, "LLM_API_KEY", "test-key")
+    monkeypatch.setattr(main_module, "LLM_MODEL", "test-model")
+    monkeypatch.setattr(main_module, "_call_llm", lambda messages: "Educational guidance.")
+    account = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Multi Device User",
+            "email": "multi-device@example.com",
+            "password": "strong-password",
+        },
+    ).json()
+    headers = {"Authorization": f"Bearer {account['token']}"}
+    first = client.post("/api/devices/register", headers=headers, json={}).json()["deviceId"]
+    second = client.post("/api/devices/register", headers=headers, json={}).json()["deviceId"]
+    payload = {
+        "messages": [{"role": "user", "content": "I have a cough."}],
+    }
+    for _ in range(3):
+        assert client.post(
+            "/api/chat",
+            headers=headers,
+            json={**payload, "deviceId": first},
+        ).status_code == 200
+    limited = client.post(
+        "/api/chat",
+        headers=headers,
+        json={**payload, "deviceId": second},
+    )
+    assert limited.status_code == 429
+
+
 def test_premium_activation(client):
     r = client.post("/api/devices/register", json={})
     did = r.json()["deviceId"]
@@ -384,7 +498,7 @@ def test_premium_activation(client):
     assert reused.status_code == 400
 
 
-# ── Orders ──────────────────────────────────────────────────────────
+# â”€â”€ Orders â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def test_order_create(client):
@@ -519,7 +633,7 @@ def test_vendor_orders_list(client):
     assert orders[0]["vendorId"] == vid
 
 
-# ── Reviews ─────────────────────────────────────────────────────────
+# â”€â”€ Reviews â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def test_create_review(client):
@@ -575,7 +689,7 @@ def test_list_vendor_reviews(client):
     assert isinstance(r.json()["reviews"], list)
 
 
-# ── Image upload ────────────────────────────────────────────────────
+# â”€â”€ Image upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def test_product_image_upload(client):

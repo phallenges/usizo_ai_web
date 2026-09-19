@@ -19,6 +19,8 @@ class AppStore extends ChangeNotifier {
   UserProfile _profile = const UserProfile();
   bool _premium = false;
   int _checksUsed = 0;
+  int _chatRequestsUsed = 0;
+  int _chatRequestsRemaining = 3;
   final List<Product> _cart = [];
   final List<Order> _orders = [];
 
@@ -42,6 +44,8 @@ class AppStore extends ChangeNotifier {
   List<Order> get orders => List.unmodifiable(_orders);
 
   bool get canCheck => _premium || _checksUsed < 3;
+  int get chatRequestsUsed => _chatRequestsUsed;
+  int get chatRequestsRemaining => _premium ? 999 : _chatRequestsRemaining;
 
   Future<void> load() async {
     try {
@@ -107,6 +111,14 @@ class AppStore extends ChangeNotifier {
       if (sub != null) {
         _premium = sub['isPremium'] == true;
         _checksUsed = (sub['checksUsed'] as num?)?.toInt() ?? 0;
+      }
+      final chatUsage = state['chatUsage'] as Map<String, dynamic>?;
+      if (chatUsage != null) {
+        _chatRequestsUsed =
+            (chatUsage['requestsUsed'] as num?)?.toInt() ?? _chatRequestsUsed;
+        _chatRequestsRemaining = (chatUsage['requestsRemaining'] as num?)
+                ?.toInt() ??
+            _chatRequestsRemaining;
       }
 
       // Sync orders
@@ -178,6 +190,13 @@ class AppStore extends ChangeNotifier {
         _persist();
       }
     } catch (_) {}
+  }
+
+  void updateChatUsage(ChatResult result) {
+    _chatRequestsUsed = result.requestsUsed;
+    _chatRequestsRemaining = result.requestsRemaining;
+    if (result.isPremium) _premium = true;
+    notifyListeners();
   }
 
   // ── Cart ──────────────────────────────────────────────────────────

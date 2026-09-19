@@ -20,8 +20,8 @@ class PremiumBanner extends StatelessWidget {
             Text(isPremium ? 'UsizoAI Plus is active' : 'Unlock UsizoAI Plus'),
         subtitle: Text(
           isPremium
-              ? 'Unlimited checks and priority guidance.'
-              : 'Unlimited checks, saved history and more.',
+              ? 'Unlimited health chat and priority guidance.'
+              : 'Three research-grounded chat checks each month.',
         ),
         trailing: TextButton(
           onPressed: onPressed,

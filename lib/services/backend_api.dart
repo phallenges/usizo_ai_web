@@ -12,6 +12,32 @@ import '../models/remedy.dart';
 import '../models/user_profile.dart';
 import '../models/vendor.dart';
 
+class BackendApiException implements Exception {
+  const BackendApiException(this.statusCode, this.detail);
+
+  final int statusCode;
+  final String detail;
+
+  @override
+  String toString() => detail;
+}
+
+class ChatResult {
+  const ChatResult({
+    required this.reply,
+    required this.isPremium,
+    required this.requestsUsed,
+    required this.requestsRemaining,
+    this.scopeRefused = false,
+  });
+
+  final String reply;
+  final bool isPremium;
+  final int requestsUsed;
+  final int requestsRemaining;
+  final bool scopeRefused;
+}
+
 /// Authenticated-device API surface used by the customer app.
 ///
 /// The API origin is supplied at build time so no development
@@ -365,6 +391,47 @@ class BackendApi {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<ChatResult> sendChat({
+    required List<Map<String, String>> messages,
+  }) async {
+    if (!isConfigured) {
+      throw const BackendApiException(503, 'The guidance service is not configured.');
+    }
+    await _ensureRegistered();
+    final id = await deviceId();
+    final token = await _accountToken();
+    final response = await _request(
+      () => _client.post(
+        Uri.parse('$_baseUrl/api/chat'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': '******',
+        },
+        body: jsonEncode({'deviceId': id, 'messages': messages}),
+      ),
+      timeout: const Duration(seconds: 45),
+    );
+    Map<String, dynamic> data = {};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map) {
+        data = Map<String, dynamic>.from(decoded);
+      }
+    } catch (_) {}
+    if (response.statusCode != 200) {
+      final detail = data['detail'] as String? ??
+          'The guidance service is temporarily unavailable.';
+      throw BackendApiException(response.statusCode, detail);
+    }
+    return ChatResult(
+      reply: data['reply'] as String? ?? '',
+      isPremium: data['isPremium'] == true,
+      requestsUsed: (data['requestsUsed'] as num?)?.toInt() ?? 0,
+      requestsRemaining: (data['requestsRemaining'] as num?)?.toInt() ?? 0,
+      scopeRefused: data['scopeRefused'] == true,
+    );
   }
 
   // ── Subscription activation ──────────────────────────────────────

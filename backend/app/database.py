@@ -183,6 +183,15 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   checks_used INTEGER DEFAULT 0,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS llm_usage_monthly (
+  device_id TEXT NOT NULL REFERENCES devices(id),
+  month TEXT NOT NULL,
+  requests_used INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (device_id, month)
+);
+CREATE INDEX IF NOT EXISTS idx_llm_usage_month
+  ON llm_usage_monthly(month, updated_at DESC);
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
   device_id TEXT NOT NULL REFERENCES devices(id),

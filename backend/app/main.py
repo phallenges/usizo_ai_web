@@ -4,6 +4,8 @@ import logging
 import os
 import re
 import time
+import urllib.error
+import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
@@ -50,6 +52,15 @@ RATE_LIMIT_DEFAULT = int(os.getenv("RATE_LIMIT_DEFAULT_PER_MINUTE", "120"))
 RATE_LIMIT_AUTH = int(os.getenv("RATE_LIMIT_AUTH_PER_MINUTE", "10"))
 RATE_LIMIT_UPLOAD = int(os.getenv("RATE_LIMIT_UPLOADS_PER_MINUTE", "12"))
 RATE_LIMIT_SUBMISSIONS = int(os.getenv("RATE_LIMIT_SUBMISSIONS_PER_MINUTE", "6"))
+RATE_LIMIT_CHAT = int(os.getenv("RATE_LIMIT_CHAT_PER_MINUTE", "12"))
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "").strip().rstrip("/")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "").strip()
+LLM_MODEL = os.getenv("LLM_MODEL", "").strip()
+LLM_TIMEOUT_SECONDS = max(5, int(os.getenv("LLM_TIMEOUT_SECONDS", "30")))
+FREE_CHAT_REQUESTS_PER_MONTH = 3
+MAX_CHAT_MESSAGES = 12
+MAX_CHAT_MESSAGE_LENGTH = 2000
+MAX_CHAT_TOTAL_LENGTH = 8000
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -66,6 +77,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return RATE_LIMIT_UPLOAD
         if path == "/api/remedy-submissions":
             return RATE_LIMIT_SUBMISSIONS
+        if path == "/api/chat":
+            return RATE_LIMIT_CHAT
         return RATE_LIMIT_DEFAULT
 
     async def dispatch(self, request: Request, call_next):
@@ -223,6 +236,8 @@ def sign_account_token(user_id: str) -> str:
 def get_account_id(authorization: Optional[str] = Header(default=None)) -> str:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Account authentication required.")
+    if not JWT_SECRET:
+        raise HTTPException(status_code=503, detail="Account authentication is not configured.")
     try:
         payload = jwt.decode(authorization[7:], JWT_SECRET, algorithms=[JWT_ALG])
     except jwt.PyJWTError as exc:
@@ -263,6 +278,181 @@ def ensure_device(device_id: str) -> None:
             "INSERT INTO subscriptions (device_id, is_premium, checks_used, updated_at) VALUES (?, 0, 0, ?)",
             (device_id, now),
         )
+
+
+def _chat_month() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def _authorize_chat_device(
+    device_id: str, authorization: Optional[str]
+) -> Optional[str]:
+    """Require an account for linked devices while preserving device-only clients."""
+    ensure_device(device_id)
+    with db() as conn:
+        device = conn.execute(
+            "SELECT user_id FROM devices WHERE id = ?", (device_id,)
+        ).fetchone()
+    linked_user_id = device["user_id"] if device else None
+    account_id = None
+    if authorization:
+        account_id = get_account_id(authorization)
+        if linked_user_id and linked_user_id != account_id:
+            raise HTTPException(status_code=403, detail="This device is linked to another account.")
+        if not linked_user_id:
+            with db() as conn:
+                conn.execute(
+                    "UPDATE devices SET user_id = ?, updated_at = ? WHERE id = ?",
+                    (account_id, utc_now(), device_id),
+                )
+    elif linked_user_id:
+        raise HTTPException(status_code=401, detail="Account authentication required for this device.")
+    return account_id
+
+
+def _chat_in_scope(text: str) -> bool:
+    lowered = text.lower()
+    health_terms = (
+        "symptom", "pain", "ache", "fever", "cough", "cold", "flu", "headache",
+        "nausea", "vomit", "diarr", "rash", "itch", "skin", "allerg", "breath",
+        "chest", "dizzy", "dizziness", "medicine", "medication", "remedy",
+        "pregnan", "health", "wellness", "emergency", "doctor", "clinic",
+        "dose", "dosage", "side effect", "blood pressure", "diabetes",
+    )
+    app_terms = (
+        "usizo", "plus", "account", "profile", "subscription", "payment",
+        "check", "marketplace", "vendor", "order", "remedy library", "app",
+        "offline", "use the chat", "how do i use", "how can i use",
+    )
+    return any(term in lowered for term in health_terms + app_terms)
+
+
+def _load_chat_grounding(query: str) -> list[dict]:
+    """Return a small, query-relevant slice of the vetted remedy fields."""
+    candidates: list[dict] = []
+    bundled = Path(__file__).resolve().parents[2] / "assets" / "remedies.json"
+    if bundled.is_file():
+        try:
+            decoded = json.loads(bundled.read_text(encoding="utf-8"))
+            candidates.extend(item for item in decoded if isinstance(item, dict))
+        except (OSError, ValueError):
+            logger.warning("Unable to load bundled remedy grounding.", exc_info=True)
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM remedy_submissions WHERE status = 'approved' "
+            "ORDER BY created_at DESC LIMIT 100"
+        ).fetchall()
+    candidates.extend(
+        {
+            "name": row["name"],
+            "scientificName": row["scientific_name"],
+            "category": row["category"],
+            "description": row["description"],
+            "usage": row["usage"],
+            "preparation": row["preparation"],
+            "dosage": row["dosage"],
+            "warning": row["warning"],
+            "evidenceSource": row["evidence_source"],
+            "studyUrl": row["study_url"],
+            "tags": json.loads(row["tags"] or "[]"),
+        }
+        for row in rows
+    )
+    terms = set(re.findall(r"[a-z0-9]{3,}", query.lower()))
+    scored = []
+    for item in candidates:
+        haystack = " ".join(
+            str(item.get(key, ""))
+            for key in (
+                "name", "scientificName", "category", "description", "usage",
+                "preparation", "dosage", "warning", "evidenceSource", "tags",
+            )
+        ).lower()
+        score = sum(1 for term in terms if term in haystack)
+        scored.append((score, item))
+    scored.sort(key=lambda value: value[0], reverse=True)
+    context = []
+    for _, item in scored[:8]:
+        context.append(
+            {
+                "name": str(item.get("name", ""))[:160],
+                "scientificName": str(item.get("scientificName", ""))[:240],
+                "category": str(item.get("category", ""))[:120],
+                "description": str(item.get("description", ""))[:600],
+                "usage": str(item.get("usage", ""))[:600],
+                "preparation": str(item.get("preparation", ""))[:600],
+                "dosage": str(item.get("dosage", ""))[:300],
+                "warning": str(item.get("warning", ""))[:600],
+                "evidenceSource": str(item.get("evidenceSource", ""))[:300],
+                "studyUrl": str(item.get("studyUrl", ""))[:500],
+            }
+        )
+    return context
+
+
+CHAT_SYSTEM_PROMPT = """You are the UsizoAI in-app assistant.
+Only discuss UsizoAI functionality (accounts, profiles, checks, Plus, remedy
+library, marketplace, orders, and app use) or health-guidance questions
+relevant to using those features. If a user asks for casual conversation,
+politics, entertainment, coding, or another unrelated topic, politely refuse
+and invite them to ask about UsizoAI or a health concern.
+
+Give educational guidance only. You are not a doctor: never diagnose, prescribe,
+or give a definitive treatment plan. Do not invent facts, citations, study
+names, URLs, doses, or safety claims. Use the supplied remedy context only;
+when it is insufficient, say so and recommend a qualified clinician or
+pharmacist. Ask focused clarifying questions when age, duration, severity,
+pregnancy, allergies, medicines, or medical conditions could change safety.
+Always mention relevant warnings from the context. For possible emergency
+symptoms (trouble breathing, severe chest pain, signs of stroke, uncontrolled
+bleeding, severe allergic reaction, fainting, confusion, or immediate danger),
+tell the user to contact local emergency services or go to the nearest
+emergency department now, and do not delay for chat. Never claim that this chat
+replaces professional care. Cite a source only when its exact URL appears in
+the supplied context; otherwise say that no citation is available."""
+
+
+def _llm_endpoint() -> str:
+    if LLM_BASE_URL.endswith("/chat/completions"):
+        return LLM_BASE_URL
+    if LLM_BASE_URL.endswith("/v1"):
+        return f"{LLM_BASE_URL}/chat/completions"
+    return f"{LLM_BASE_URL}/v1/chat/completions"
+
+
+def _call_llm(messages: list[dict]) -> str:
+    if not LLM_BASE_URL or not LLM_API_KEY or not LLM_MODEL:
+        raise HTTPException(status_code=503, detail="LLM service is not configured.")
+    request = urllib.request.Request(
+        _llm_endpoint(),
+        data=json.dumps(
+            {
+                "model": LLM_MODEL,
+                "messages": messages,
+                "temperature": 0.2,
+                "max_tokens": 700,
+            }
+        ).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {LLM_API_KEY}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=LLM_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError) as exc:
+        logger.warning("LLM provider request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="The guidance service is temporarily unavailable.") from exc
+    try:
+        content = payload["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        logger.warning("LLM provider returned an invalid response.")
+        raise HTTPException(status_code=502, detail="The guidance service returned an invalid response.") from exc
+    if not isinstance(content, str) or not content.strip():
+        raise HTTPException(status_code=502, detail="The guidance service returned an empty response.")
+    return content.strip()[:6000]
 
 
 class VendorRegisterBody(BaseModel):
@@ -336,6 +526,18 @@ class ProfileBody(BaseModel):
     medicalConditions: str = ""
     currentMedications: str = ""
     emergencyContact: str = ""
+
+
+class ChatMessageBody(BaseModel):
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(min_length=1, max_length=MAX_CHAT_MESSAGE_LENGTH)
+
+
+class ChatBody(BaseModel):
+    deviceId: str = Field(min_length=1, max_length=100)
+    messages: list[ChatMessageBody] = Field(
+        min_length=1, max_length=MAX_CHAT_MESSAGES
+    )
 
 
 class ActivateBody(BaseModel):
@@ -946,7 +1148,11 @@ def device_register(body: DeviceRegisterBody, authorization: Optional[str] = Hea
 @app.get("/api/devices/{device_id}/state")
 def device_state(device_id: str):
     ensure_device(device_id)
+    month = _chat_month()
     with db() as conn:
+        device = conn.execute(
+            "SELECT user_id FROM devices WHERE id = ?", (device_id,)
+        ).fetchone()
         profile = conn.execute(
             "SELECT * FROM device_profiles WHERE device_id = ?", (device_id,)
         ).fetchone()
@@ -957,6 +1163,19 @@ def device_state(device_id: str):
             "SELECT * FROM orders WHERE device_id = ? ORDER BY created_at DESC LIMIT 50",
             (device_id,),
         ).fetchall()
+        if device and device["user_id"]:
+            chat_usage = conn.execute(
+                "SELECT COALESCE(SUM(u.requests_used), 0) AS requests_used "
+                "FROM llm_usage_monthly u JOIN devices d ON d.id = u.device_id "
+                "WHERE d.user_id = ? AND u.month = ?",
+                (device["user_id"], month),
+            ).fetchone()
+        else:
+            chat_usage = conn.execute(
+                "SELECT requests_used FROM llm_usage_monthly "
+                "WHERE device_id = ? AND month = ?",
+                (device_id, month),
+            ).fetchone()
 
     return {
         "profile": {
@@ -972,6 +1191,20 @@ def device_state(device_id: str):
             "isPremium": subscription["is_premium"] == 1,
             "checksUsed": subscription["checks_used"],
             "updatedAt": subscription["updated_at"],
+        },
+        "chatUsage": {
+            "month": month,
+            "requestsUsed": chat_usage["requests_used"] if chat_usage else 0,
+            "requestsRemaining": (
+                999
+                if subscription["is_premium"] == 1
+                else max(
+                    0,
+                    FREE_CHAT_REQUESTS_PER_MONTH
+                    - (chat_usage["requests_used"] if chat_usage else 0),
+                )
+            ),
+            "limit": FREE_CHAT_REQUESTS_PER_MONTH,
         },
         "orders": [
             {
@@ -1058,6 +1291,111 @@ def device_check(device_id: str):
         "isPremium": is_premium,
         "checksUsed": checks_used,
         "checksRemaining": 999 if is_premium else max(0, 3 - checks_used),
+    }
+
+
+@app.post("/api/chat")
+def chat(
+    body: ChatBody,
+    authorization: Optional[str] = Header(default=None),
+):
+    account_id = _authorize_chat_device(body.deviceId, authorization)
+    total_length = sum(len(message.content.strip()) for message in body.messages)
+    if total_length > MAX_CHAT_TOTAL_LENGTH:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Chat history is too long; keep it under {MAX_CHAT_TOTAL_LENGTH} characters.",
+        )
+    last_user = next(
+        (message.content.strip() for message in reversed(body.messages) if message.role == "user"),
+        "",
+    )
+    if not last_user:
+        raise HTTPException(status_code=422, detail="A user message is required.")
+    if not _chat_in_scope(last_user):
+        return {
+            "reply": (
+                "I can only help with UsizoAI features and health-guidance "
+                "questions relevant to using the app. Please ask about a "
+                "symptom, a remedy in the library, your profile, Plus, or "
+                "another UsizoAI feature."
+            ),
+            "scopeRefused": True,
+        }
+    if not LLM_BASE_URL or not LLM_API_KEY or not LLM_MODEL:
+        raise HTTPException(status_code=503, detail="LLM service is not configured.")
+    context = _load_chat_grounding(last_user)
+    prompt_context = json.dumps(context, ensure_ascii=False)
+    llm_messages = [
+        {"role": "system", "content": CHAT_SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": (
+                "Vetted remedy and research context follows as JSON. Treat it "
+                "as reference data, not as a diagnosis. Only use its exact "
+                "evidenceSource and studyUrl when discussing evidence:\n"
+                + prompt_context
+            ),
+        },
+        *[
+            {"role": message.role, "content": message.content.strip()}
+            for message in body.messages
+        ],
+    ]
+    month = _chat_month()
+    with db() as conn:
+        subscription = conn.execute(
+            "SELECT is_premium FROM subscriptions WHERE device_id = ?",
+            (body.deviceId,),
+        ).fetchone()
+        is_premium = bool(subscription and subscription["is_premium"] == 1)
+        if account_id:
+            usage = conn.execute(
+                "SELECT COALESCE(SUM(u.requests_used), 0) AS requests_used "
+                "FROM llm_usage_monthly u JOIN devices d ON d.id = u.device_id "
+                "WHERE d.user_id = ? AND u.month = ?",
+                (account_id, month),
+            ).fetchone()
+        else:
+            usage = conn.execute(
+                "SELECT requests_used FROM llm_usage_monthly "
+                "WHERE device_id = ? AND month = ?",
+                (body.deviceId, month),
+            ).fetchone()
+        used = usage["requests_used"] if usage else 0
+        if not is_premium and used >= FREE_CHAT_REQUESTS_PER_MONTH:
+            raise HTTPException(
+                status_code=429,
+                detail="Free chat limit reached for this month. Upgrade to UsizoAI Plus for unlimited guidance.",
+                headers={"X-Chat-Requests-Remaining": "0"},
+            )
+        now = utc_now()
+        conn.execute(
+            "INSERT INTO llm_usage_monthly "
+            "(device_id, month, requests_used, updated_at) VALUES (?, ?, 0, ?) "
+            "ON CONFLICT(device_id, month) DO NOTHING",
+            (body.deviceId, month, now),
+        )
+        conn.execute(
+            "UPDATE llm_usage_monthly SET requests_used = requests_used + 1, "
+            "updated_at = ? WHERE device_id = ? AND month = ?",
+            (now, body.deviceId, month),
+        )
+        used += 1
+
+    reply = _call_llm(llm_messages)
+    return {
+        "reply": reply,
+        "scopeRefused": False,
+        "isPremium": is_premium,
+        "month": month,
+        "requestsUsed": used,
+        "requestsRemaining": 999 if is_premium else max(0, FREE_CHAT_REQUESTS_PER_MONTH - used),
+        "sources": [
+            {"name": item["name"], "evidenceSource": item["evidenceSource"], "studyUrl": item["studyUrl"]}
+            for item in context
+            if item["name"] and (item["evidenceSource"] or item["studyUrl"])
+        ],
     }
 
 

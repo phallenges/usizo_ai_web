@@ -9,6 +9,12 @@ Copy `backend/.env.example` to `backend/.env`, set a unique `JWT_SECRET` of at
 least 32 characters, and set the exact `CORS_ALLOWED_ORIGINS` for the deployed web/admin clients. Set
 `ENVIRONMENT=production`; this disables API docs and auto-reload.
 
+The health chat requires the server-only `LLM_BASE_URL`, `LLM_API_KEY`, and
+`LLM_MODEL` variables from `backend/.env.example`. The endpoint uses the
+standard OpenAI-compatible `/v1/chat/completions` contract and keeps the API
+key off-device. Non-Plus devices are limited to three chat requests per UTC
+calendar month; usage is stored in PostgreSQL in `llm_usage_monthly`.
+
 Run the API from `backend/` with `py -m uvicorn app.main:app --host 0.0.0.0 --port 3000` behind HTTPS at a reverse proxy. Production requires a managed PostgreSQL database configured through `DATABASE_URL`; SQLite is local-development/test only. Use a TLS-enabled connection string from the provider (for example, one containing `sslmode=require`) and keep the pool within the provider's connection limit with `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX`.
 
 The public landing page is served at `/` (with `/index.html` as an alias), the
