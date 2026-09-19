@@ -32,6 +32,15 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
   CheckResult? result;
   bool isChecking = false;
 
+  String get _timeGreeting {
+    final hour = DateTime.now().hour;
+    if (hour < 5) return 'Good night';
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    if (hour < 22) return 'Good evening';
+    return 'Good night';
+  }
+
   @override
   void dispose() {
     controller.dispose();
@@ -125,7 +134,7 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Good morning', style: theme.textTheme.labelLarge),
+                    Text(_timeGreeting, style: theme.textTheme.labelLarge),
                     Text(
                       widget.store.profile.name.isEmpty
                           ? 'Your health, in context.'
