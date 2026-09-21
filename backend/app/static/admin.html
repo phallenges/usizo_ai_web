@@ -435,10 +435,11 @@ async function loadPlusPayments() {
     const data = await api(`/api/admin/plus-payment-submissions?status=${status}&limit=200`);
     document.getElementById('plus-payments-table').innerHTML = data.submissions.length ? `
       <table>
-        <thead><tr><th>Customer</th><th>EcoCash reference</th><th>Confirmation</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Customer</th><th>Token email</th><th>EcoCash reference</th><th>Confirmation</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
         <tbody>${data.submissions.map(p => `
           <tr>
             <td><strong>${escapeHtml(p.userName || 'Unlinked device')}</strong><br><small>${escapeHtml(p.userEmail || p.userPhone || p.deviceId)}</small></td>
+            <td>${escapeHtml(p.deliveryEmail || 'Missing')}</td>
             <td>${escapeHtml(p.merchantReference)}</td>
             <td style="max-width:300px;white-space:pre-wrap">${escapeHtml(p.confirmationMessage)}</td>
             <td style="font-size:12px">${new Date(p.createdAt).toLocaleString()}</td>
@@ -460,8 +461,8 @@ async function reviewPlusPayment(id, action) {
       method: 'PATCH',
       body: { action, adminNote: note }
     });
-    if (data.token) {
-      alert(`Payment approved. Send this token to the customer:\n\n${data.token}`);
+    if (data.deliveryEmail) {
+      alert(`Payment approved. The activation token was emailed to ${data.deliveryEmail}.`);
     }
     loadPlusPayments();
   } catch (e) { alert(e.message); }

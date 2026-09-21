@@ -25,21 +25,34 @@ class PaymentDetailsScreen extends StatefulWidget {
 class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
   final referenceController = TextEditingController();
   final messageController = TextEditingController();
+  late final TextEditingController emailController;
   bool submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    emailController = TextEditingController(text: widget.store.profile.email);
+  }
 
   @override
   void dispose() {
     referenceController.dispose();
     messageController.dispose();
+    emailController.dispose();
     super.dispose();
   }
 
   Future<void> _submitPayment() async {
     final reference = referenceController.text.trim();
     final message = messageController.text.trim();
-    if (reference.isEmpty || message.isEmpty) {
+    final email = emailController.text.trim();
+    if (reference.isEmpty || message.isEmpty || email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter the EcoCash reference and confirmation message.')),
+        const SnackBar(
+          content: Text(
+            'Enter your email, EcoCash reference, and confirmation message.',
+          ),
+        ),
       );
       return;
     }
@@ -47,12 +60,14 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
     final sent = await widget.store.backendApi.submitPlusPayment(
       merchantReference: reference,
       confirmationMessage: message,
+      deliveryEmail: email,
     );
     if (!mounted) return;
     setState(() => submitting = false);
     if (sent) {
       referenceController.clear();
       messageController.clear();
+      widget.store.updateProfile(widget.store.profile.copyWith(email: email));
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -165,6 +180,16 @@ class _PaymentDetailsScreenState extends State<PaymentDetailsScreen> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
+          TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Email for your activation token',
+              hintText: 'you@example.com',
+              prefixIcon: Icon(Icons.mail_outline),
+            ),
+          ),
+          const SizedBox(height: 10),
           TextField(
             controller: referenceController,
             decoration: const InputDecoration(

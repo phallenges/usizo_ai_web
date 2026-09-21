@@ -2,6 +2,10 @@
 
 The current payment model remains manual EcoCash payment followed by a Plus
 activation token. It does not process or store card/payment credentials.
+Approved Plus tokens are emailed automatically to the delivery email submitted
+with the customer's EcoCash confirmation. Configure `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM` in production.
+If email delivery fails, the payment remains pending and no token is issued.
 
 ## Production configuration
 

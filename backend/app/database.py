@@ -246,6 +246,7 @@ CREATE TABLE IF NOT EXISTS plus_payment_submissions (
   user_id TEXT REFERENCES users(id),
   merchant_reference TEXT NOT NULL,
   confirmation_message TEXT NOT NULL,
+  delivery_email TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending',
   admin_note TEXT DEFAULT '',
   created_at TEXT NOT NULL,
@@ -297,6 +298,7 @@ def _postgres_schema(conn: PostgresConnection) -> None:
         conn.execute("ALTER TABLE devices ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id)")
         conn.execute("ALTER TABLE device_profiles ADD COLUMN IF NOT EXISTS medical_conditions TEXT DEFAULT ''")
         conn.execute("ALTER TABLE device_profiles ADD COLUMN IF NOT EXISTS current_medications TEXT DEFAULT ''")
+        conn.execute("ALTER TABLE plus_payment_submissions ADD COLUMN IF NOT EXISTS delivery_email TEXT DEFAULT ''")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id)")
     except Exception:
         conn.raw.rollback()
@@ -342,6 +344,14 @@ def init_schema() -> None:
                 conn.execute(
                     f"ALTER TABLE device_profiles ADD COLUMN {column} TEXT DEFAULT ''"
                 )
+        plus_payment_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(plus_payment_submissions)")
+        }
+        if "delivery_email" not in plus_payment_columns:
+            conn.execute(
+                "ALTER TABLE plus_payment_submissions ADD COLUMN delivery_email TEXT DEFAULT ''"
+            )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id)")
 
 

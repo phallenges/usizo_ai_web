@@ -1,8 +1,11 @@
 import json
+from email.message import EmailMessage
 import hmac
 import logging
 import os
 import re
+import smtplib
+import ssl
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -50,6 +53,11 @@ RATE_LIMIT_DEFAULT = int(os.getenv("RATE_LIMIT_DEFAULT_PER_MINUTE", "120"))
 RATE_LIMIT_AUTH = int(os.getenv("RATE_LIMIT_AUTH_PER_MINUTE", "10"))
 RATE_LIMIT_UPLOAD = int(os.getenv("RATE_LIMIT_UPLOADS_PER_MINUTE", "12"))
 RATE_LIMIT_SUBMISSIONS = int(os.getenv("RATE_LIMIT_SUBMISSIONS_PER_MINUTE", "6"))
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
+SMTP_FROM = os.getenv("SMTP_FROM", "").strip()
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -345,6 +353,7 @@ class ActivateBody(BaseModel):
 class PlusPaymentSubmissionBody(BaseModel):
     merchantReference: str = Field(min_length=1, max_length=200)
     confirmationMessage: str = Field(min_length=1, max_length=2000)
+    deliveryEmail: str = Field(min_length=3, max_length=320)
 
 
 class OrderBody(BaseModel):
@@ -1083,6 +1092,44 @@ def device_activate(device_id: str, body: ActivateBody):
     return {"isPremium": True, "updatedAt": now}
 
 
+def send_plus_token_email(recipient: str, token: str, payment_reference: str) -> None:
+    if not SMTP_HOST or not SMTP_USERNAME or not SMTP_PASSWORD or not SMTP_FROM:
+        raise HTTPException(status_code=503, detail="Email delivery is not configured.")
+    message = EmailMessage()
+    message["Subject"] = "Your UsizoAI Plus activation token"
+    message["From"] = SMTP_FROM
+    message["To"] = recipient
+    message.set_content(
+        f"""Your UsizoAI Plus payment was verified.
+
+Your one-time activation token is:
+
+{token}
+
+Open UsizoAI, choose Activate Plus, and enter this token. It can only be used once.
+
+Payment reference: {payment_reference}
+
+UsizoAI provides educational health guidance and does not replace a qualified health professional.
+"""
+    )
+    try:
+        if SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(
+                SMTP_HOST, SMTP_PORT, timeout=15, context=ssl.create_default_context()
+            ) as server:
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.send_message(message)
+        else:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+                server.starttls(context=ssl.create_default_context())
+                server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.send_message(message)
+    except (OSError, smtplib.SMTPException) as exc:
+        logger.exception("Plus token email delivery failed")
+        raise HTTPException(status_code=503, detail="Token email could not be sent.") from exc
+
+
 @app.post("/api/devices/{device_id}/plus-payment-submissions")
 def submit_plus_payment(
     device_id: str,
@@ -1090,6 +1137,9 @@ def submit_plus_payment(
     authorization: Optional[str] = Header(default=None),
 ):
     ensure_device(device_id)
+    delivery_email = body.deliveryEmail.strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", delivery_email):
+        raise HTTPException(status_code=400, detail="Enter a valid email address.")
     user_id = None
     if authorization and authorization.startswith("Bearer "):
         try:
@@ -1099,6 +1149,20 @@ def submit_plus_payment(
     submission_id = f"plus-payment-{uuid.uuid4()}"
     now = utc_now()
     with db() as conn:
+        if user_id:
+            email_owner = conn.execute(
+                "SELECT id FROM users WHERE lower(email) = ? AND id <> ?",
+                (delivery_email, user_id),
+            ).fetchone()
+            if email_owner:
+                raise HTTPException(
+                    status_code=409,
+                    detail="That email is already linked to another account.",
+                )
+            conn.execute(
+                "UPDATE users SET email = ?, updated_at = ? WHERE id = ?",
+                (delivery_email, now, user_id),
+            )
         duplicate = conn.execute(
             """
             SELECT id FROM plus_payment_submissions
@@ -1111,8 +1175,9 @@ def submit_plus_payment(
         conn.execute(
             """
             INSERT INTO plus_payment_submissions
-              (id, device_id, user_id, merchant_reference, confirmation_message, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+              (id, device_id, user_id, merchant_reference, confirmation_message,
+               delivery_email, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 submission_id,
@@ -1120,6 +1185,7 @@ def submit_plus_payment(
                 user_id,
                 body.merchantReference.strip(),
                 body.confirmationMessage.strip(),
+                delivery_email,
                 now,
             ),
         )
@@ -2040,19 +2106,20 @@ def review_plus_payment(
         if row["status"] != "pending":
             raise HTTPException(status_code=409, detail="Payment submission was already reviewed.")
         status = "approved" if body.action == "approve" else "rejected"
-        conn.execute(
-            """
-            UPDATE plus_payment_submissions
-            SET status = ?, admin_note = ?, reviewed_at = ?, reviewed_by = 'admin'
-            WHERE id = ?
-            """,
-            (status, body.adminNote.strip(), now, submission_id),
-        )
     token = None
     if body.action == "approve":
         import secrets as _secrets
         token = f"USIZO-{_secrets.token_urlsafe(18).upper()}"
+        send_plus_token_email(row["delivery_email"].strip(), token, row["merchant_reference"])
         with db() as conn:
+            conn.execute(
+                """
+                UPDATE plus_payment_submissions
+                SET status = ?, admin_note = ?, reviewed_at = ?, reviewed_by = 'admin'
+                WHERE id = ?
+                """,
+                (status, body.adminNote.strip(), now, submission_id),
+            )
             conn.execute(
                 "INSERT INTO activation_tokens (token_hash, reference, created_at) VALUES (?, ?, ?)",
                 (token_digest(token), row["merchant_reference"], now),
@@ -2066,6 +2133,15 @@ def review_plus_payment(
             details={"merchantReference": row["merchant_reference"]},
         )
     else:
+        with db() as conn:
+            conn.execute(
+                """
+                UPDATE plus_payment_submissions
+                SET status = ?, admin_note = ?, reviewed_at = ?, reviewed_by = 'admin'
+                WHERE id = ?
+                """,
+                (status, body.adminNote.strip(), now, submission_id),
+            )
         audit(
             "plus_payment_rejected",
             actor_type="admin",
@@ -2074,7 +2150,10 @@ def review_plus_payment(
             target_id=submission_id,
             details={"merchantReference": row["merchant_reference"]},
         )
-    return {"status": "approved" if body.action == "approve" else "rejected", "token": token}
+    return {
+        "status": "approved" if body.action == "approve" else "rejected",
+        "deliveryEmail": row["delivery_email"] if body.action == "approve" else None,
+    }
 
 
 @app.delete("/api/admin/reviews/{review_id}")

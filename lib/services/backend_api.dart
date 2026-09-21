@@ -394,6 +394,7 @@ class BackendApi {
   Future<bool> submitPlusPayment({
     required String merchantReference,
     required String confirmationMessage,
+    required String deliveryEmail,
   }) async {
     if (!isConfigured) return false;
     await _ensureRegistered();
@@ -410,6 +411,7 @@ class BackendApi {
           body: jsonEncode({
             'merchantReference': merchantReference.trim(),
             'confirmationMessage': confirmationMessage.trim(),
+            'deliveryEmail': deliveryEmail.trim(),
           }),
         ),
       );
