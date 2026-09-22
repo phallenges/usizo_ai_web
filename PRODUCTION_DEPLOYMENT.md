@@ -108,6 +108,10 @@ android\app\build\outputs\flutter-apk\app-release.apk
 Rename the release asset to `UsizoAI.apk` before uploading it to GitHub
 Releases. Keep generated APKs out of Git history.
 
+Publish the release as a normal release, not a pre-release, because `/download`
+serves the newest non-draft, non-pre-release release. Delete the release it
+replaces so an older tag cannot become `latest` again.
+
 ## Release checklist
 
 - Backend tests pass.
@@ -119,4 +123,6 @@ Releases. Keep generated APKs out of Git history.
 - EcoCash payment verification remains manual.
 - The APK points to the correct public API origin.
 - The GitHub Release asset is named `UsizoAI.apk`.
+- The new release is published as a normal release and the superseded one is deleted.
+- `/download` returns HTTP 302 to the intended release.
 - Privacy, health-safety, retention, and support procedures are reviewed.

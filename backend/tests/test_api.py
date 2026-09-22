@@ -35,6 +35,24 @@ def test_health(client):
     assert "products" in body
 
 
+# ── Android APK download ────────────────────────────────────────────
+
+
+def test_download_redirects_to_latest_release(client):
+    """The download must follow the newest published release, never a pinned tag."""
+    r = client.get("/download", follow_redirects=False)
+    assert r.status_code == 302
+    location = r.headers["location"]
+    assert "/releases/latest/download/UsizoAI.apk" in location
+    assert "/releases/download/v" not in location
+
+
+def test_download_returns_503_when_unconfigured(client, monkeypatch):
+    monkeypatch.setattr(main_module, "APK_DOWNLOAD_URL", "")
+    r = client.get("/download", follow_redirects=False)
+    assert r.status_code == 503
+
+
 def test_account_register_and_login(client):
     response = client.post(
         "/api/auth/register",

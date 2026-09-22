@@ -36,6 +36,27 @@ https://usizoai.onrender.com/download
 The admin dashboard uses the `ADMIN_TOKEN` value as a bearer token. It is not
 the same as a customer password.
 
+## Android APK downloads
+
+`/download` returns a `302` redirect to the newest published GitHub release
+asset:
+
+```text
+https://github.com/phallenges/usizo_ai_web/releases/latest/download/UsizoAI.apk
+```
+
+GitHub resolves `latest` to the most recent release that is neither a draft nor
+a pre-release. Publishing a release therefore updates the public download with
+no backend change. Two rules follow from this:
+
+- Publish each new APK as a normal (non-pre-release) release whose asset is
+  named `UsizoAI.apk`.
+- Delete superseded releases. Re-publishing an older tag would make that tag
+  `latest` again and silently regress the download.
+
+Set `APK_DOWNLOAD_URL` in Render to override the default and pin an exact
+release when a rollback is needed.
+
 ## Plus payment and token operations
 
 The current flow is manual EcoCash verification:
