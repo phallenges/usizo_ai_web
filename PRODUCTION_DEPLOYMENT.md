@@ -1,192 +1,121 @@
-# PRODUCTION MODEL LOCKED IN ✓
-
-## Status: COMPLETE & VERIFIED
-
-**Model**: all-MiniLM-L12-v2 (ONNX Format)
-**Size**: 53.36 MB
-**Location**: `assets/models/all_minilm_l12_v2.onnx`
-**Framework**: ONNX Runtime (production-grade)
-**Status**: Ready for deployment
-
----
-
-## What Changed
-
-### 1. Real Production Model Downloaded
-- Downloaded the actual pre-built all-MiniLM-L12-v2 ONNX model from HuggingFace
-- 53.36 MB of pure semantic embedding power
-- No placeholders, no compromises
-
-### 2. Framework Upgrade: TFLite → ONNX Runtime
-- **TFLite**: Limited support for complex models, Python 3.14 incompatible
-- **ONNX Runtime**: Industry standard for sentence-transformers, full feature support
-- Better performance, better accuracy, better compatibility
-
-### 3. Production Services Created
-
-#### `OnnxEmbeddingService` 
-- Real ONNX model inference (not mocked)
-- Proper tokenization (BERT-compatible)
-- L2 normalization
-- Mean pooling for sequence-to-embedding conversion
-
-#### `VectorIndexService`
-- Smart caching to SharedPreferences
-- Semantic search with cosine similarity
-- Adaptive ranking (70% text + 30% tags)
-- Version-aware cache invalidation
-
-#### `SymptomChecker`
-- Async semantic matching
-- Emergency keyword detection (fast path)
-- Intelligent fallback on failure
-- Automatic condition inference
-
-### 4. Updated Dependencies
-```yaml
-dependencies:
-  onnx_runtime_flutter: ^1.19.0  # Production ONNX support
-  vector_math: ^2.1.4            # Vector operations
-```
-
----
-
-## Key Improvements
-
-| Feature | Keyword-Based | Semantic ML |
-|---------|---|---|
-| Synonym awareness | ❌ | ✅ |
-| Context sensitivity | ❌ | ✅ |
-| Typo tolerance | ❌ | ✅ |
-| Offline | ✅ | ✅ |
-| Speed (warm) | Instant | 100-200ms |
-| Accuracy | ~60% | ~85-90% |
-
----
-
-## Performance Characteristics
-
-### Startup
-- **Model load**: 1-2 seconds (first launch)
-- **Index build**: 2-5 seconds (50 remedies)
-- **Cached start**: Instant
-
-### Query
-- **Cold search**: 200-400ms (model + inference)
-- **Warm search**: 100-200ms (cached embeddings)
-- **Emergency detection**: <10ms (fast keyword path)
-
-### Memory
-- **Model in memory**: ~150 MB
-- **Index cache**: ~5-10 MB
-- **Total footprint**: ~200 MB
-
----
+# Production deployment
 
 ## Architecture
 
+UsizoAI production consists of:
+
+- Flutter Android client
+- FastAPI web service
+- Managed PostgreSQL database
+- Render deployment
+- SMTP provider for Plus activation emails
+- GitHub Release asset for the Android APK
+
+The Android app contains no backend secrets. It only receives the public API
+base URL at build time.
+
+## Render Blueprint
+
+The repository includes `render.yaml` for:
+
+- Web service: `usizoai-api`
+- Docker build context: `backend/`
+- Health check: `/health`
+- PostgreSQL database: `usizoai-db`
+- Automatic deploys from the configured branch
+
+Create or update the Render Blueprint from the GitHub repository, then confirm
+the generated public service domain in Render. The currently used service is:
+
+```text
+https://usizoai.onrender.com
 ```
-OnnxEmbeddingService (ONNX Runtime)
-    ↓
-    └─→ Generates 384-dimensional embeddings
-    
-VectorIndexService
-    ├─→ Caches embeddings to disk
-    ├─→ Performs semantic search
-    └─→ Ranks by relevance
 
-SymptomChecker
-    ├─→ Emergency detection (fast)
-    ├─→ Semantic matching (ONNX)
-    └─→ Fallback (keyword-based)
-    
-SymptomCheckerScreen (UI)
-    └─→ Async analysis with loading state
+Do not assume a service hostname if Render shows a different domain.
+
+## Required Render variables
+
+Set these in the web service environment:
+
+```text
+ENVIRONMENT=production
+JWT_SECRET=<generated secret, at least 32 characters>
+ADMIN_TOKEN=<generated admin token>
+DATABASE_URL=<provided by the usizoai-db Render database>
+CORS_ALLOWED_ORIGINS=https://usizoai.onrender.com
 ```
 
----
+For automatic Plus token email delivery, also set:
 
-## Files Modified/Created
+```text
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=motsutreasure@gmail.com
+SMTP_PASSWORD=<Gmail App Password>
+SMTP_FROM=UsizoAI <motsutreasure@gmail.com>
+```
 
-### New Files
-- `lib/services/onnx_embedding_service.dart` - ONNX model wrapper
-- `lib/services/vector_index_service.dart` - Vector index & search
-- `assets/models/all_minilm_l12_v2.onnx` - Real model (53 MB)
+Never use the normal Gmail password. Enable 2-Step Verification and create a
+Gmail App Password for SMTP.
 
-### Modified Files
-- `lib/main.dart` - Initialize ONNX services
-- `lib/services/symptom_checker.dart` - Async semantic matching
-- `lib/screens/symptom_checker_screen.dart` - Handle async operations
-- `lib/screens/home_screen.dart` - Pass checker instance
-- `pubspec.yaml` - Add ONNX Runtime dependency
+## Deploy the backend
 
-### Kept For Compatibility
-- `lib/services/embedding_service.dart` - Fallback implementation
+After pushing to the deployment branch:
 
----
+1. Open the Render service.
+2. Confirm the new commit appears under **Events**.
+3. Wait for the deploy to become **Live**.
+4. Check:
 
-## Next Steps: Deploy
+```text
+https://usizoai.onrender.com/health
+https://usizoai.onrender.com/
+https://usizoai.onrender.com/admin/
+```
 
-### 1. Install Dependencies
-```bash
-cd C:\src\usizo_ai_web
+The health endpoint must return HTTP 200 before releasing an APK that depends
+on the backend.
+
+## Build the Android app
+
+For a public release using the default API origin:
+
+```powershell
 flutter pub get
+flutter build apk --release
 ```
 
-### 2. Verify Model is Present
-```bash
-ls assets/models/all_minilm_l12_v2.onnx
-# Should show: 53.36 MB
+If the API has another public hostname:
+
+```powershell
+flutter build apk --release `
+  --dart-define=USIZO_API_BASE_URL=https://your-api-host.example
 ```
 
-### 3. Run the App
-```bash
-flutter run
+The generated APK is normally:
+
+```text
+build\app\outputs\flutter-apk\app-release.apk
 ```
 
-### 4. Test Semantic Matching
-```
-Input: "I have a headache"
-Expected: Ginger tea, pain relief remedies
-Confidence: 75-85%
+If Flutter reports an output-detection error after Gradle succeeds, check:
 
-Input: "difficulty breathing"  
-Expected: Emergency screen
-Confidence: 100%
+```text
+android\app\build\outputs\flutter-apk\app-release.apk
 ```
 
----
+Rename the release asset to `UsizoAI.apk` before uploading it to GitHub
+Releases. Keep generated APKs out of Git history.
 
-## What's Locked In
+## Release checklist
 
-✅ **Production-grade ONNX model** - Real semantic embeddings
-✅ **ONNX Runtime** - Industry standard, proven at scale
-✅ **53 MB model file** - No downgrades, no placeholders
-✅ **Intelligent caching** - Smart persistence layer
-✅ **Fallback safety** - App never crashes on ML errors
-✅ **Async UI** - Responsive with loading indicators
-✅ **Emergency detection** - Fast keyword path for safety
-✅ **Offline-first** - No network required
-✅ **Zero compromises** - Production implementation
-
----
-
-## Performance Target: ACHIEVED ✓
-
-- Semantic matching: 85-90% accuracy
-- Query time: 100-200ms (warm)
-- Emergency response: <10ms
-- Offline functionality: 100%
-- Memory footprint: ~200 MB
-
----
-
-## Total Implementation
-
-- **Model**: Downloaded & verified ✓
-- **Services**: 3 production classes
-- **Integration**: Updated 5 files
-- **Testing**: Ready for QA
-- **Deployment**: Production-ready
-
-**Status**: LOCKED IN, NO COMPROMISES
+- Backend tests pass.
+- `flutter analyze` has no errors.
+- `/health`, `/`, and `/admin/` return HTTP 200.
+- PostgreSQL is connected and durable.
+- SMTP sends a test message.
+- Plus payment approval does not issue a token if SMTP fails.
+- EcoCash payment verification remains manual.
+- The APK points to the correct public API origin.
+- The GitHub Release asset is named `UsizoAI.apk`.
+- Privacy, health-safety, retention, and support procedures are reviewed.

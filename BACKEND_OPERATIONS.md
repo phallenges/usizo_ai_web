@@ -1,78 +1,105 @@
-# Backend operations and launch controls
+# Backend operations
 
-The current payment model remains manual EcoCash payment followed by a Plus
-activation token. It does not process or store card/payment credentials.
-Approved Plus tokens are emailed automatically to the delivery email submitted
-with the customer's EcoCash confirmation. Configure `SMTP_HOST`,
-`SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM` in production.
-If email delivery fails, the payment remains pending and no token is issued.
+This document describes the production behavior of the current `main` branch.
 
 ## Production configuration
 
-Copy `backend/.env.example` to `backend/.env`, set a unique `JWT_SECRET` of at
-least 32 characters, and set the exact `CORS_ALLOWED_ORIGINS` for the deployed web/admin clients. Set
-`ENVIRONMENT=production`; this disables API docs and auto-reload.
+Required:
 
-Run the API from `backend/` with `py -m uvicorn app.main:app --host 0.0.0.0 --port 3000` behind HTTPS at a reverse proxy. Production requires a managed PostgreSQL database configured through `DATABASE_URL`; SQLite is local-development/test only. Use a TLS-enabled connection string from the provider (for example, one containing `sslmode=require`) and keep the pool within the provider's connection limit with `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX`.
-
-The public landing page is served at `/` (with `/index.html` as an alias), the
-operations dashboard at `/admin/`, the API status at `/api/`, and the favicon
-at `/favicon.ico` or `/favicon.png`. The `/download` endpoint redirects to
-the current Android APK release. Set `APK_DOWNLOAD_URL` to the exact HTTPS
-download URL for the published APK (the default points to the `v1.0.0`
-`UsizoAI.apk` asset in this repository's GitHub Releases). Update this
-value when publishing a new release. Keep the APK in a
-release or object store rather than committing the generated binary to the
-repository or bundling it into the API image.
-
-## Free preview deployment
-
-The repository includes `render.yaml` and `backend/Dockerfile` for a no-cost
-Render preview service and PostgreSQL database. Create a Render Blueprint from
-the repository, set `CORS_ALLOWED_ORIGINS` to the app origin (add additional
-comma-separated origins if needed), and use the generated service URL as
-`USIZO_API_BASE_URL` when building Flutter:
-
-```powershell
-flutter build appbundle --dart-define=USIZO_API_BASE_URL=https://usizoai-api.onrender.com
+```text
+ENVIRONMENT=production
+JWT_SECRET=<at least 32 random characters>
+ADMIN_TOKEN=<long random admin bearer token>
+DATABASE_URL=<managed PostgreSQL connection string>
+CORS_ALLOWED_ORIGINS=<comma-separated HTTPS origins>
 ```
 
-The free service may sleep when idle. The Blueprint provisions the named
-managed PostgreSQL instance and wires its connection string into
-`DATABASE_URL`. Do not point production at
-`DATABASE_PATH` or `/tmp`; those files are not durable.
+The backend reads these values from Render environment variables in production.
+Do not commit secrets, `.env` files, SMTP credentials, or generated signing
+keys.
 
-Build the customer app with the public API origin (never a secret) so Plus
-tokens are redeemed by the server rather than validated on-device:
+The backend requires PostgreSQL in production because the Render filesystem is
+not durable. SQLite is for local development and tests only.
 
-```powershell
-flutter build appbundle --dart-define=USIZO_API_BASE_URL=https://api.example.com
+## Live routes
+
+For the current Render service:
+
+```text
+https://usizoai.onrender.com/
+https://usizoai.onrender.com/admin/
+https://usizoai.onrender.com/health
+https://usizoai.onrender.com/api/
+https://usizoai.onrender.com/download
 ```
 
-## Manual Plus activation
+The admin dashboard uses the `ADMIN_TOKEN` value as a bearer token. It is not
+the same as a customer password.
 
-After an operator verifies an EcoCash payment, issue a token once:
+## Plus payment and token operations
+
+The current flow is manual EcoCash verification:
+
+1. The customer opens **Pay with EcoCash**.
+2. The customer pays the displayed amount to the configured UsizoAI number.
+3. EcoCash sends a confirmation message and transaction reference.
+4. The customer submits the reference, confirmation message, and delivery email
+   from the app.
+5. The backend stores a pending payment submission.
+6. The admin independently verifies the payment in EcoCash.
+7. The admin opens **Plus Payments** and approves or rejects the submission.
+8. On approval, the backend creates a random single-use token and emails it to
+   the submitted email address.
+9. The customer enters the token in **Activate Plus**.
+10. The backend stores only a token digest and marks the token redeemed after
+    successful activation.
+
+A payment is not approved merely because a customer supplied a screenshot,
+reference, or message. If SMTP delivery fails, approval fails and no token is
+issued.
+
+## SMTP token delivery
+
+Configure these Render variables:
+
+```text
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=<sending Gmail address>
+SMTP_PASSWORD=<Gmail App Password, not the normal password>
+SMTP_FROM=UsizoAI <sending Gmail address>
+```
+
+For Gmail, enable 2-Step Verification and create an App Password. Remove
+spaces from the App Password before saving it in Render. Redeploy after
+changing environment variables.
+
+## Marketplace payment proof
+
+Marketplace EcoCash payments are separate from Plus:
+
+1. The customer creates an order.
+2. The supplier confirms payment instructions.
+3. The customer pays the supplier externally.
+4. The customer uploads a payment confirmation image.
+5. The supplier reviews the proof and confirms or rejects the order.
+
+This flow does not process payments automatically.
+
+## Database and backups
+
+The schema is initialized on service startup. Back up PostgreSQL before
+production migrations or operational changes. Test restoration, not only backup
+creation. Payment confirmations and audit events should be retained according
+to the business privacy and retention policy.
+
+## Local operations
 
 ```powershell
 cd backend
-py -m app.create_activation_token --reference ECOCASH-TRANSACTION-REFERENCE
+py run.py
+backend\.venv\Scripts\python.exe -m pytest -q backend\tests
 ```
 
-Send the printed token privately to that customer. The database retains only a
-SHA-256 digest. A token can be redeemed by one device once; it cannot be
-reused or guessed from the old checksum format.
-
-## Release gates still owned by the business
-
-- Add vetted products for Treasure Motsu and verify supplier, product-safety,
-  fulfilment, refund, and support processes before publishing them.
-- Serve the API and any web/admin client over HTTPS; take encrypted database
-  backups and test restoration.
-- Review the existing authenticated customer account and medical-profile flows
-  before storing additional sensitive health information.
-- Complete the medical/legal review of remedy content, emergency copy, privacy
-  notice, consent, retention policy, and applicable health/product rules in
-  every launch market.
-- Configure monitoring, error alerting, distributed rate limiting if the
-  service scales beyond one process, and an incident-response contact before
-  public release. The API currently applies per-process, per-IP limits.
+The production container uses `PORT` supplied by Render. Do not hard-code a
+public host or expose database credentials to the Flutter app.
