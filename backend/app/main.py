@@ -414,6 +414,7 @@ class OrderConfirmBody(BaseModel):
 
 
 ADMIN_HTML = Path(__file__).parent / "static" / "admin.html"
+VENDOR_HTML = Path(__file__).parent / "static" / "vendor.html"
 LANDING_HTML = Path(__file__).parent / "static" / "index.html"
 FAVICON = Path(__file__).parent / "static" / "favicon.png"
 APK_DOWNLOAD_URL = os.getenv(
@@ -455,6 +456,14 @@ def admin_dashboard():
     if not ADMIN_HTML.is_file():
         raise HTTPException(status_code=404, detail="Admin dashboard not found.")
     return FileResponse(str(ADMIN_HTML), media_type="text/html")
+
+
+@app.get("/vendor")
+@app.get("/vendor/", include_in_schema=False)
+def vendor_portal():
+    if not VENDOR_HTML.is_file():
+        raise HTTPException(status_code=404, detail="Vendor portal not found.")
+    return FileResponse(str(VENDOR_HTML), media_type="text/html")
 
 
 @app.get("/api", include_in_schema=False)
@@ -1296,7 +1305,32 @@ def vendor_review_payment(
             (body.status, body.rejectionReason, now, order_id),
         )
         updated = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+    audit(
+        f"payment_proof_{body.status}",
+        actor_type="vendor",
+        actor_id=vendor_id,
+        target_type="order",
+        target_id=order_id,
+    )
     return {"order": order_payload(updated)}
+
+
+@app.get("/api/vendors/me/orders/{order_id}/payment-proof")
+def vendor_get_payment_proof(order_id: str, vendor_id: str = Depends(get_vendor_id)):
+    """Serve the uploaded payment-confirmation image to the owning vendor."""
+    with db() as conn:
+        row = conn.execute(
+            "SELECT payment_proof_path FROM orders WHERE id = ? AND vendor_id = ?",
+            (order_id, vendor_id),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Order not found.")
+    if not row["payment_proof_path"]:
+        raise HTTPException(status_code=404, detail="No payment proof has been uploaded for this order.")
+    path = PAYMENT_PROOF_DIR / row["payment_proof_path"]
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Payment proof file is missing.")
+    return FileResponse(path)
 
 
 @app.post("/api/devices/{device_id}/orders")

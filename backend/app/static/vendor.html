@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="UsizoAI supplier portal: manage your products, confirm orders, and verify EcoCash payments.">
+<title>UsizoAI Supplier Portal</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #1a1a1a; line-height: 1.5; }
+  :root {
+    --primary: #087f70; --primary-dark: #066357; --primary-soft: #e6f4f2;
+    --danger: #dc2626; --danger-dark: #b91c1c; --success: #16a34a; --warning: #f59e0b;
+    --border: #e5e7eb; --bg: #ffffff; --bg2: #f9fafb; --ink-2: #374151; --ink-3: #6b7280;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+  a { color: var(--primary); }
+  :is(a, button, input, select, textarea):focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+  .hidden { display: none !important; }
+
+  /* Login */
+  .login-screen { max-width: 400px; margin: 96px auto; padding: 40px; background: var(--bg); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .login-screen h1 { font-size: 24px; margin-bottom: 4px; }
+  .login-screen p { color: var(--ink-3); margin-bottom: 24px; font-size: 14px; }
+  label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--ink-2); }
+  input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; margin-bottom: 16px; font-family: inherit; background: var(--bg); color: inherit; }
+  textarea { resize: vertical; min-height: 72px; }
+  input[type="checkbox"] { width: auto; margin: 0 8px 0 0; transform: scale(1.15); }
+  .checkbox-row { display: flex; align-items: center; margin-bottom: 14px; font-size: 14px; }
+  .checkbox-row label { margin: 0; }
+  button { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; min-height: 44px; font-family: inherit; }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-danger:hover { background: var(--danger-dark); }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { background: #15803d; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--ink-2); }
+  .btn-outline:hover { background: var(--bg2); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; min-height: 36px; }
+  .error-msg { color: var(--danger); font-size: 13px; margin-bottom: 12px; }
+  .hint { font-size: 12px; color: var(--ink-3); margin: -12px 0 16px; }
+
+  /* Layout */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 230px; background: #0d2b27; color: #9fc4be; padding: 20px 0; flex-shrink: 0; }
+  .sidebar h2 { color: white; font-size: 16px; padding: 0 20px 16px; border-bottom: 1px solid #1d443f; margin-bottom: 8px; }
+  .sidebar button { display: block; width: 100%; text-align: left; padding: 12px 20px; background: none; border: none; color: #9fc4be; font-size: 14px; cursor: pointer; min-height: 44px; }
+  .sidebar button:hover, .sidebar button[aria-current="page"] { background: #1d443f; color: white; }
+  .sidebar .signout { margin-top: 24px; color: #f87171; }
+  .main { flex: 1; padding: 24px 32px; overflow-y: auto; min-width: 0; }
+  .main h1 { font-size: 22px; margin-bottom: 20px; }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .toolbar input, .toolbar select { width: auto; margin-bottom: 0; }
+  .toolbar .spacer { flex: 1; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: var(--bg); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 16px; }
+  th { background: var(--bg2); text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 10px 14px; border-top: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tbody tr:hover td { background: var(--bg2); }
+  .cell-name { font-weight: 600; }
+  .cell-sub { display: block; font-size: 11px; color: var(--ink-3); font-family: monospace; font-weight: 400; }
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; display: block; background: var(--bg2); }
+  .thumb-placeholder { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--bg2); color: var(--ink-3); font-size: 18px; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .badge-proof { background: #dbeafe; color: #1e40af; }
+  .badge-confirmed { background: #d1fae5; color: #065f46; }
+  .badge-delivered { background: #d1fae5; color: #065f46; }
+  .badge-cancelled { background: #fee2e2; color: #991b1b; }
+  .badge-rejected { background: #fee2e2; color: #991b1b; }
+  .badge-out { background: #fee2e2; color: #991b1b; }
+  .badge-in { background: #d1fae5; color: #065f46; }
+  .badge-neutral { background: var(--bg2); color: var(--ink-3); border: 1px solid var(--border); }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  .modal { background: var(--bg); border-radius: 12px; padding: 24px; max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.16); }
+  .modal h2 { font-size: 18px; margin-bottom: 12px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }
+  .detail-list { font-size: 13px; }
+  .detail-list dt { font-weight: 600; color: var(--ink-3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; }
+  .detail-list dd { margin-top: 2px; }
+  .proof-image { max-width: 100%; max-height: 320px; border-radius: 8px; border: 1px solid var(--border); display: block; margin: 8px 0; }
+  .proof-frame { text-align: center; }
+
+  /* Misc */
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { text-align: center; padding: 40px; color: #9ca3af; }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #111827; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; box-shadow: 0 4px 16px rgba(0,0,0,0.24); max-width: 90vw; }
+  #toast.error { background: var(--danger-dark); }
+  .image-preview { max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid var(--border); display: none; margin-bottom: 12px; }
+  .skip-link { position: absolute; left: -9999px; top: 0; background: var(--primary); color: white; padding: 10px 16px; border-radius: 0 0 8px 0; z-index: 300; }
+  .skip-link:focus { left: 0; }
+  @media (max-width: 720px) {
+    .app { flex-direction: column; }
+    .sidebar { width: 100%; padding: 8px 0; }
+    .sidebar h2 { padding: 8px 16px; border-bottom: none; }
+    .main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- Login -->
+<div id="login" class="login-screen">
+  <h1>UsizoAI Suppliers</h1>
+  <p>Manage products, orders, and EcoCash payments.</p>
+  <div id="login-error" class="error-msg hidden" role="alert"></div>
+  <form id="login-form" novalidate>
+    <label for="phone-input">Phone number</label>
+    <input type="tel" id="phone-input" name="phone" placeholder="+263 77 000 0000" autocomplete="tel" required>
+    <label for="pin-input">PIN</label>
+    <input type="password" id="pin-input" name="pin" inputmode="numeric" autocomplete="current-password" required aria-describedby="pin-hint">
+    <p id="pin-hint" class="hint">The 4-digit PIN you registered with.</p>
+    <button type="submit" class="btn-primary" style="width:100%">Sign in</button>
+  </form>
+</div>
+
+<!-- App -->
+<div id="app" class="app hidden">
+  <nav class="sidebar" aria-label="Supplier portal">
+    <h2 id="vendor-name">UsizoAI Supplier</h2>
+    <button type="button" id="nav-products" aria-current="page" onclick="showTab('products', this)">Products</button>
+    <button type="button" id="nav-orders" onclick="showTab('orders', this)">Orders</button>
+    <button type="button" id="nav-profile" onclick="showTab('profile', this)">Business profile</button>
+    <button type="button" class="signout" onclick="logout()">Sign out</button>
+  </nav>
+
+  <div class="main" id="main">
+    <!-- Products -->
+    <section id="tab-products" aria-labelledby="products-heading">
+      <h1 id="products-heading">Products</h1>
+      <div class="toolbar">
+        <label for="product-search" class="hidden">Filter products</label>
+        <input type="search" id="product-search" placeholder="Filter by name or tag..." oninput="renderProductsDebounced()">
+        <span class="spacer"></span>
+        <button type="button" class="btn-primary" onclick="openProductModal()">+ Add product</button>
+      </div>
+      <div id="products-table" class="table-wrap" aria-live="polite"></div>
+    </section>
+
+    <!-- Orders -->
+    <section id="tab-orders" class="hidden" aria-labelledby="orders-heading">
+      <h1 id="orders-heading">Orders</h1>
+      <div class="toolbar">
+        <label for="order-status-filter" class="hidden">Filter by status</label>
+        <select id="order-status-filter" onchange="renderOrders()">
+          <option value="">All statuses</option>
+          <option value="pending">Pending — needs your confirmation</option>
+          <option value="payment_proof_submitted">Payment proof — needs review</option>
+          <option value="payment_rejected">Payment rejected</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="delivered">Delivered</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <span class="spacer"></span>
+        <button type="button" class="btn-outline" onclick="loadOrders()">Refresh</button>
+      </div>
+      <div id="orders-table" class="table-wrap" aria-live="polite"></div>
+    </section>
+
+    <!-- Profile -->
+    <section id="tab-profile" class="hidden" aria-labelledby="profile-heading">
+      <h1 id="profile-heading">Business profile</h1>
+      <div id="profile-error" class="error-msg hidden" role="alert"></div>
+      <form id="profile-form" style="max-width:480px" novalidate>
+        <label for="profile-name">Business name</label>
+        <input type="text" id="profile-name" maxlength="120" required>
+        <label for="profile-location">Location</label>
+        <input type="text" id="profile-location" maxlength="120" required>
+        <label for="profile-description">Description</label>
+        <textarea id="profile-description" maxlength="500" placeholder="What you sell and where you deliver."></textarea>
+        <label for="profile-phone">Phone number</label>
+        <input type="tel" id="profile-phone" autocomplete="tel">
+        <label for="profile-ecocash">EcoCash number</label>
+        <input type="tel" id="profile-ecocash" autocomplete="tel">
+        <label for="profile-whatsapp">WhatsApp number</label>
+        <input type="tel" id="profile-whatsapp" autocomplete="tel">
+        <button type="submit" class="btn-primary">Save profile</button>
+      </form>
+    </section>
+  </div>
+</div>
+
+<!-- Product modal -->
+<div id="product-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
+  <div class="modal">
+    <h2 id="product-modal-title">Add product</h2>
+    <div id="product-modal-error" class="error-msg hidden" role="alert"></div>
+    <form id="product-form" novalidate>
+      <label for="product-name">Product name</label>
+      <input type="text" id="product-name" maxlength="120" required>
+      <label for="product-category">Category</label>
+      <select id="product-category">
+        <option>Herbal remedy</option>
+        <option>Supplement</option>
+        <option>Food</option>
+        <option>Personal care</option>
+        <option>Other</option>
+      </select>
+      <label for="product-price">Price (USD)</label>
+      <input type="number" id="product-price" min="0.01" step="0.01" inputmode="decimal" required placeholder="5.00">
+      <label for="product-description">Description</label>
+      <textarea id="product-description" maxlength="1000"></textarea>
+      <label for="product-tags">Tags</label>
+      <input type="text" id="product-tags" placeholder="immunity, tea, dried" aria-describedby="tags-hint">
+      <p id="tags-hint" class="hint">Comma-separated keywords buyers can search for.</p>
+      <div class="checkbox-row">
+        <input type="checkbox" id="product-instock" checked>
+        <label for="product-instock">In stock</label>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="product-online">
+        <label for="product-online">Available for online orders</label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-outline" onclick="closeModal('product-modal')">Cancel</button>
+        <button type="submit" class="btn-primary" id="product-save">Save product</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Product image modal -->
+<div id="image-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="image-modal-title">
+  <div class="modal">
+    <h2 id="image-modal-title">Product photo</h2>
+    <p class="hint" style="margin-top:-8px">JPEG, PNG, WebP, or GIF up to 5 MB.</p>
+    <div id="image-modal-error" class="error-msg hidden" role="alert"></div>
+    <img id="image-preview" class="image-preview" alt="Preview of selected product photo" width="320" height="200">
+    <form id="image-form">
+      <label for="image-file">Choose photo</label>
+      <input type="file" id="image-file" accept="image/jpeg,image/png,image/webp,image/gif" required>
+      <div class="modal-actions">
+        <button type="button" class="btn-outline" onclick="closeModal('image-modal')">Cancel</button>
+        <button type="submit" class="btn-primary" id="image-save">Upload photo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Order modal -->
+<div id="order-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="order-modal-title">
+  <div class="modal" id="order-modal-content"></div>
+</div>
+
+<div id="toast" class="hidden" role="status" aria-live="polite"></div>
+
+<script>
+'use strict';
+
+const API = window.location.origin;
+let token = '';
+let vendor = null;
+let products = [];
+let orders = [];
+let editingProductId = null;
+let imageProductId = null;
+let renderTimer = null;
+let lastFocused = null;
+
+// ── Utilities ────────────────────────────────────────────────────────
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[ch]));
+}
+
+function money(cents) {
+  return '$' + (Number(cents || 0) / 100).toFixed(2);
+}
+
+function dollarsToCents(value) {
+  const parsed = Number.parseFloat(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(parsed * 100);
+}
+
+function formatDate(iso) {
+  try { return new Date(iso).toLocaleString(); } catch { return iso || '—'; }
+}
+
+function statusLabel(status) {
+  return {
+    pending: 'Pending',
+    payment_proof_submitted: 'Proof submitted',
+    payment_rejected: 'Payment rejected',
+    confirmed: 'Confirmed',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled',
+  }[status] || status;
+}
+
+function badge(status) {
+  const cls = {
+    pending: 'badge-pending',
+    payment_proof_submitted: 'badge-proof',
+    payment_rejected: 'badge-rejected',
+    confirmed: 'badge-confirmed',
+    delivered: 'badge-delivered',
+    cancelled: 'badge-cancelled',
+  }[status] || 'badge-neutral';
+  return `<span class="badge ${cls}">${escapeHtml(statusLabel(status))}</span>`;
+}
+
+let toastTimer = null;
+function toast(message, isError) {
+  const el = document.getElementById('toast');
+  el.textContent = message;
+  el.classList.toggle('error', Boolean(isError));
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+async function api(path, opts = {}) {
+  const headers = { 'Authorization': `Bearer ${token}`, ...opts.headers };
+  if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+  const r = await fetch(`${API}${path}`, { ...opts, headers });
+  if (r.status === 401 || r.status === 403) { logout(); throw new Error('Session expired. Please sign in again.'); }
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(typeof e.detail === 'string' ? e.detail : r.statusText || 'Request failed');
+  }
+  return r.status === 200 ? r.json() : null;
+}
+
+// ── Modal focus management ───────────────────────────────────────────
+
+function openModal(id) {
+  lastFocused = document.activeElement;
+  const overlay = document.getElementById(id);
+  overlay.classList.remove('hidden');
+  const first = overlay.querySelector('input:not([type=hidden]), select, textarea, button:not(.btn-outline)');
+  if (first) first.focus();
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  if (lastFocused && document.contains(lastFocused)) lastFocused.focus();
+  lastFocused = null;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  for (const id of ['order-modal', 'image-modal', 'product-modal']) {
+    const el = document.getElementById(id);
+    if (el && !el.classList.contains('hidden')) { closeModal(id); return; }
+  }
+});
+
+document.addEventListener('click', e => {
+  const overlay = e.target.classList && e.target.classList.contains('modal-overlay') ? e.target : null;
+  if (overlay) closeModal(overlay.id);
+});
+
+// ── Auth ─────────────────────────────────────────────────────────────
+
+function logout() {
+  token = '';
+  vendor = null;
+  document.getElementById('login').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+  localStorage.removeItem('vendor_token');
+}
+
+async function login(phone, pin) {
+  const errorEl = document.getElementById('login-error');
+  errorEl.classList.add('hidden');
+  try {
+    const data = await fetch(`${API}/api/vendors/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, pin }),
+    }).then(r => r.json().then(body => ({ ok: r.ok, body })));
+    if (!data.ok) throw new Error(typeof data.body.detail === 'string' ? data.body.detail : 'Invalid phone number or PIN.');
+    token = data.body.token;
+    vendor = data.body.vendor;
+    localStorage.setItem('vendor_token', token);
+    enterApp();
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.classList.remove('hidden');
+  }
+}
+
+function enterApp() {
+  document.getElementById('login').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('vendor-name').textContent = vendor.name || 'UsizoAI Supplier';
+  showTab('products', document.getElementById('nav-products'));
+  document.getElementById('nav-products').focus();
+}
+
+document.getElementById('login-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const phone = document.getElementById('phone-input').value.trim();
+  const pin = document.getElementById('pin-input').value.trim();
+  if (!phone || !pin) {
+    const errorEl = document.getElementById('login-error');
+    errorEl.textContent = 'Enter your phone number and PIN.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  login(phone, pin);
+});
+
+// ── Tabs ─────────────────────────────────────────────────────────────
+
+function showTab(name, button) {
+  for (const tab of ['products', 'orders', 'profile']) {
+    document.getElementById(`tab-${tab}`).classList.toggle('hidden', tab !== name);
+  }
+  for (const id of ['nav-products', 'nav-orders', 'nav-profile']) {
+    document.getElementById(id).removeAttribute('aria-current');
+  }
+  if (button) button.setAttribute('aria-current', 'page');
+  if (name === 'products') loadProducts();
+  if (name === 'orders') loadOrders();
+  if (name === 'profile') loadProfile();
+}
+
+// ── Products ─────────────────────────────────────────────────────────
+
+async function loadProducts() {
+  const container = document.getElementById('products-table');
+  container.innerHTML = '<div class="empty"><span class="spinner" role="status" aria-label="Loading products"></span></div>';
+  try {
+    const data = await api('/api/vendors/me/products');
+    products = data.products || [];
+    renderProducts();
+  } catch (e) {
+    container.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function productThumb(p) {
+  if (p.imageAsset) {
+    return `<img class="thumb" src="${escapeHtml(p.imageAsset)}" alt="" loading="lazy" decoding="async" width="44" height="44">`;
+  }
+  return '<div class="thumb-placeholder" aria-hidden="true">🖼</div>';
+}
+
+function renderProducts() {
+  const container = document.getElementById('products-table');
+  const query = document.getElementById('product-search').value.trim().toLowerCase();
+  const visible = query
+    ? products.filter(p =>
+        p.name.toLowerCase().includes(query) ||
+        (p.tags || []).some(t => t.toLowerCase().includes(query)) ||
+        (p.category || '').toLowerCase().includes(query))
+    : products;
+
+  if (!visible.length) {
+    container.innerHTML = `<div class="empty">${query ? 'No products match your filter.' :
+      'No products yet. Add your first product so buyers can order.'}</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <table>
+      <caption class="hidden">Your products</caption>
+      <thead><tr>
+        <th scope="col">Photo</th><th scope="col">Product</th><th scope="col">Price</th>
+        <th scope="col">Stock</th><th scope="col">Online</th><th scope="col">Actions</th>
+      </tr></thead>
+      <tbody>
+        ${visible.map(p => `
+          <tr data-product-id="${escapeHtml(p.id)}">
+            <td>${productThumb(p)}</td>
+            <td><span class="cell-name">${escapeHtml(p.name)}</span>
+              <span class="cell-sub">${escapeHtml(p.category || '')}</span></td>
+            <td>${money(p.priceCents)}</td>
+            <td>${p.inStock
+              ? '<span class="badge badge-in">In stock</span>'
+              : '<span class="badge badge-out">Out</span>'}</td>
+            <td>${p.canBuyOnline
+              ? '<span class="badge badge-in">Yes</span>'
+              : '<span class="badge badge-neutral">No</span>'}</td>
+            <td><div class="row-actions">
+              <button type="button" class="btn-outline btn-sm" data-action="edit">Edit</button>
+              <button type="button" class="btn-outline btn-sm" data-action="image">Photo</button>
+              <button type="button" class="btn-danger btn-sm" data-action="delete">Delete</button>
+            </div></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderProductsDebounced() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderProducts, 120);
+}
+
+// Delegated row actions (no inline handlers, works after re-render)
+document.getElementById('products-table').addEventListener('click', e => {
+  const button = e.target.closest('button[data-action]');
+  if (!button) return;
+  const row = button.closest('tr[data-product-id]');
+  const product = products.find(p => p.id === row.dataset.productId);
+  if (!product) return;
+  if (button.dataset.action === 'edit') openProductModal(product);
+  if (button.dataset.action === 'image') openImageModal(product);
+  if (button.dataset.action === 'delete') deleteProduct(product);
+});
+
+function openProductModal(product) {
+  editingProductId = product ? product.id : null;
+  document.getElementById('product-modal-title').textContent = product ? 'Edit product' : 'Add product';
+  document.getElementById('product-modal-error').classList.add('hidden');
+  document.getElementById('product-name').value = product ? product.name : '';
+  document.getElementById('product-category').value = product && product.category ? product.category : 'Herbal remedy';
+  document.getElementById('product-price').value = product ? (product.priceCents / 100).toFixed(2) : '';
+  document.getElementById('product-description').value = product ? (product.description || '') : '';
+  document.getElementById('product-tags').value = product ? (product.tags || []).join(', ') : '';
+  document.getElementById('product-instock').checked = product ? Boolean(product.inStock) : true;
+  document.getElementById('product-online').checked = product ? Boolean(product.canBuyOnline) : false;
+  openModal('product-modal');
+}
+
+document.getElementById('product-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errorEl = document.getElementById('product-modal-error');
+  errorEl.classList.add('hidden');
+
+  const name = document.getElementById('product-name').value.trim();
+  const priceCents = dollarsToCents(document.getElementById('product-price').value);
+  if (!name) return showFieldError(errorEl, 'Product name is required.');
+  if (priceCents === null) return showFieldError(errorEl, 'Enter a valid price greater than zero.');
+  if (priceCents > 10_000_000) return showFieldError(errorEl, 'Price is too high.');
+
+  const body = {
+    name,
+    category: document.getElementById('product-category').value,
+    priceCents,
+    description: document.getElementById('product-description').value.trim(),
+    tags: document.getElementById('product-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+    inStock: document.getElementById('product-instock').checked,
+    canBuyOnline: document.getElementById('product-online').checked,
+  };
+
+  const saveButton = document.getElementById('product-save');
+  saveButton.disabled = true;
+  try {
+    if (editingProductId) {
+      const data = await api(`/api/vendors/me/products/${encodeURIComponent(editingProductId)}`, { method: 'PATCH', body });
+      const index = products.findIndex(p => p.id === editingProductId);
+      if (index >= 0) products[index] = data.product;
+      toast(`Saved "${data.product.name}".`);
+    } else {
+      const data = await api('/api/vendors/me/products', { method: 'POST', body });
+      products.unshift(data.product);
+      toast(`Added "${data.product.name}".`);
+    }
+    closeModal('product-modal');
+    renderProducts();
+  } catch (err) {
+    showFieldError(errorEl, err.message);
+  } finally {
+    saveButton.disabled = false;
+  }
+});
+
+function showFieldError(errorEl, message) {
+  errorEl.textContent = message;
+  errorEl.classList.remove('hidden');
+}
+
+async function deleteProduct(product) {
+  if (!window.confirm(`Delete "${product.name}"? Buyers will no longer see it.`)) return;
+  try {
+    await api(`/api/vendors/me/products/${encodeURIComponent(product.id)}`, { method: 'DELETE' });
+    products = products.filter(p => p.id !== product.id);
+    renderProducts();
+    toast(`Deleted "${product.name}".`);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// ── Product images ───────────────────────────────────────────────────
+
+function openImageModal(product) {
+  imageProductId = product.id;
+  document.getElementById('image-modal-title').textContent = `Photo: ${product.name}`;
+  document.getElementById('image-modal-error').classList.add('hidden');
+  const fileInput = document.getElementById('image-file');
+  fileInput.value = '';
+  const preview = document.getElementById('image-preview');
+  preview.style.display = 'none';
+  preview.removeAttribute('src');
+  openModal('image-modal');
+}
+
+document.getElementById('image-file').addEventListener('change', e => {
+  const input = e.target;
+  const preview = document.getElementById('image-preview');
+  if (input.files && input.files[0]) {
+    preview.src = URL.createObjectURL(input.files[0]);
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+});
+
+document.getElementById('image-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errorEl = document.getElementById('image-modal-error');
+  errorEl.classList.add('hidden');
+
+  const input = document.getElementById('image-file');
+  const file = input.files && input.files[0];
+  if (!file) return showFieldError(errorEl, 'Choose a photo first.');
+  if (file.size > 5 * 1024 * 1024) return showFieldError(errorEl, 'Photo must be 5 MB or smaller.');
+
+  const form = new FormData();
+  form.append('file', file);
+  const saveButton = document.getElementById('image-save');
+  saveButton.disabled = true;
+  try {
+    const data = await api(`/api/products/${encodeURIComponent(imageProductId)}/image`, { method: 'POST', body: form });
+    const index = products.findIndex(p => p.id === imageProductId);
+    if (index >= 0) products[index] = { ...products[index], imageAsset: data.imageAsset };
+    closeModal('image-modal');
+    renderProducts();
+    toast('Photo updated.');
+  } catch (err) {
+    showFieldError(errorEl, err.message);
+  } finally {
+    saveButton.disabled = false;
+  }
+});
+
+// ── Orders ───────────────────────────────────────────────────────────
+
+async function loadOrders() {
+  const container = document.getElementById('orders-table');
+  container.innerHTML = '<div class="empty"><span class="spinner" role="status" aria-label="Loading orders"></span></div>';
+  try {
+    const data = await api('/api/vendors/me/orders');
+    orders = (data.orders || []).slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    renderOrders();
+  } catch (e) {
+    container.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function ordersNeedingAttention() {
+  return orders.filter(o => o.status === 'pending' || o.status === 'payment_proof_submitted').length;
+}
+
+function renderOrders() {
+  const container = document.getElementById('orders-table');
+  const filter = document.getElementById('order-status-filter').value;
+  const visible = filter ? orders.filter(o => o.status === filter) : orders;
+
+  if (!orders.length) {
+    container.innerHTML = '<div class="empty">No orders yet. Orders buyers place appear here.</div>';
+    return;
+  }
+  if (!visible.length) {
+    container.innerHTML = '<div class="empty">No orders with this status.</div>';
+    return;
+  }
+
+  container.innerHTML = `
+    <table>
+      <caption class="hidden">Orders from buyers</caption>
+      <thead><tr>
+        <th scope="col">Reference</th><th scope="col">Items</th><th scope="col">Total</th>
+        <th scope="col">Status</th><th scope="col">Placed</th><th scope="col">Actions</th>
+      </tr></thead>
+      <tbody>
+        ${visible.map(o => `
+          <tr data-order-id="${escapeHtml(o.id)}">
+            <td><span class="cell-name">${escapeHtml(o.reference || o.id)}</span></td>
+            <td>${o.items.reduce((sum, i) => sum + (i.quantity || 1), 0)}</td>
+            <td>${money(o.finalPriceCents ?? o.totalCents)}</td>
+            <td>${badge(o.status)}${o.hasPaymentProof ? ' <span class="badge badge-neutral">📷</span>' : ''}</td>
+            <td style="font-size:12px">${formatDate(o.createdAt)}</td>
+            <td><button type="button" class="btn-outline btn-sm" data-action="view">View</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+document.getElementById('orders-table').addEventListener('click', e => {
+  const button = e.target.closest('button[data-action="view"]');
+  if (!button) return;
+  const row = button.closest('tr[data-order-id]');
+  const order = orders.find(o => o.id === row.dataset.orderId);
+  if (order) openOrderModal(order);
+});
+
+function orderDetailHtml(order) {
+  const items = order.items.map(i =>
+    `<li>${escapeHtml(i.name)} × ${i.quantity} — ${money((i.priceCents || 0) * (i.quantity || 1))}</li>`).join('');
+  return `
+    <dl class="detail-list">
+      <dt>Items</dt><dd><ul style="margin-left:18px">${items}</ul></dd>
+      <dt>Estimated total</dt><dd>${money(order.totalCents)}</dd>
+      ${order.finalPriceCents != null ? `<dt>Final total</dt><dd><strong>${money(order.finalPriceCents)}</strong></dd>` : ''}
+      ${order.deliveryMethod ? `<dt>${order.deliveryMethod === 'collection' ? 'Collection point' : 'Delivery area'}</dt>
+        <dd>${escapeHtml(order.deliveryMethod === 'collection' ? order.collectionPoint : order.deliveryArea)}</dd>` : ''}
+      ${order.turnaroundTime ? `<dt>Ready in</dt><dd>${escapeHtml(order.turnaroundTime)}</dd>` : ''}
+      ${order.paymentInstructions ? `<dt>Payment instructions</dt><dd>${escapeHtml(order.paymentInstructions)}</dd>` : ''}
+      ${order.deliveryInstructions ? `<dt>Delivery notes</dt><dd>${escapeHtml(order.deliveryInstructions)}</dd>` : ''}
+      ${order.status === 'payment_rejected' && order.paymentRejectionReason
+        ? `<dt>Your rejection reason</dt><dd>${escapeHtml(order.paymentRejectionReason)}</dd>` : ''}
+    </dl>`;
+}
+
+function openOrderModal(order) {
+  const content = document.getElementById('order-modal-content');
+  content.innerHTML = `
+    <h2 id="order-modal-title">Order ${escapeHtml(order.reference || order.id)}</h2>
+    <p style="margin-bottom:8px">Status: ${badge(order.status)} <span style="font-size:12px;color:var(--ink-3)">updated ${formatDate(order.updatedAt)}</span></p>
+    ${orderDetailHtml(order)}
+    <div id="order-action-area"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-outline" onclick="closeModal('order-modal')">Close</button>
+    </div>`;
+  const actionArea = content.querySelector('#order-action-area');
+  if (order.status === 'pending' || order.status === 'payment_rejected') {
+    actionArea.innerHTML = confirmFormHtml(order);
+    bindConfirmForm(order);
+  } else if (order.status === 'payment_proof_submitted') {
+    actionArea.innerHTML = proofReviewHtml(order);
+    bindProofReview(order);
+  } else if (order.status === 'confirmed') {
+    actionArea.innerHTML = `
+      <div class="modal-actions" style="justify-content:flex-start">
+        <button type="button" class="btn-success" data-order-action="delivered">Mark delivered</button>
+      </div>`;
+    actionArea.querySelector('button').addEventListener('click', () => setOrderStatus(order.id, 'delivered'));
+  }
+  openModal('order-modal');
+}
+
+function confirmFormHtml(order) {
+  const estimated = ((order.finalPriceCents ?? order.totalCents) / 100).toFixed(2);
+  return `
+    <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+    <h3 style="font-size:15px;margin-bottom:8px">Confirm this order</h3>
+    <p class="hint" style="margin-top:0">Set the final price and tell the buyer how to pay and receive the order.</p>
+    <div id="confirm-error" class="error-msg hidden" role="alert"></div>
+    <form id="confirm-form">
+      <label for="confirm-price">Final price (USD)</label>
+      <input type="number" id="confirm-price" min="0.01" step="0.01" inputmode="decimal" value="${estimated}" required>
+      <label for="confirm-method">Fulfilment</label>
+      <select id="confirm-method">
+        <option value="delivery">Delivery</option>
+        <option value="collection">Collection</option>
+      </select>
+      <label for="confirm-area">Delivery area</label>
+      <input type="text" id="confirm-area" maxlength="200" placeholder="e.g. Bulawayo CBD">
+      <label for="confirm-collection">Collection point</label>
+      <input type="text" id="confirm-collection" maxlength="200" placeholder="e.g. Shop 4, Fife Street">
+      <label for="confirm-turnaround">Ready in</label>
+      <input type="text" id="confirm-turnaround" maxlength="100" placeholder="e.g. 24 hours">
+      <label for="confirm-payment">EcoCash payment instructions</label>
+      <textarea id="confirm-payment" maxlength="1000" placeholder="Send $X to 077 000 0000 and use the order reference." required></textarea>
+      <label for="confirm-notes">Delivery notes (optional)</label>
+      <textarea id="confirm-notes" maxlength="1000"></textarea>
+      <div class="modal-actions" style="justify-content:space-between">
+        <button type="button" class="btn-danger" id="decline-order">Decline</button>
+        <button type="submit" class="btn-primary" id="confirm-order">Confirm order</button>
+      </div>
+    </form>`;
+}
+
+function bindConfirmForm(order) {
+  const form = document.getElementById('confirm-form');
+  const methodSelect = document.getElementById('confirm-method');
+  const syncMethod = () => {
+    const isDelivery = methodSelect.value === 'delivery';
+    document.getElementById('confirm-area').disabled = !isDelivery;
+    document.getElementById('confirm-collection').disabled = isDelivery;
+  };
+  methodSelect.addEventListener('change', syncMethod);
+  syncMethod();
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const errorEl = document.getElementById('confirm-error');
+    errorEl.classList.add('hidden');
+    const priceCents = dollarsToCents(document.getElementById('confirm-price').value);
+    if (priceCents === null) return showFieldError(errorEl, 'Enter a valid final price.');
+
+    const body = {
+      action: 'confirm',
+      finalPriceCents: priceCents,
+      deliveryMethod: methodSelect.value,
+      deliveryArea: document.getElementById('confirm-area').value.trim(),
+      collectionPoint: document.getElementById('confirm-collection').value.trim(),
+      turnaroundTime: document.getElementById('confirm-turnaround').value.trim(),
+      paymentInstructions: document.getElementById('confirm-payment').value.trim(),
+      deliveryInstructions: document.getElementById('confirm-notes').value.trim(),
+    };
+    if (body.deliveryMethod === 'delivery' && !body.deliveryArea) return showFieldError(errorEl, 'Enter a delivery area.');
+    if (body.deliveryMethod === 'collection' && !body.collectionPoint) return showFieldError(errorEl, 'Enter a collection point.');
+
+    const button = document.getElementById('confirm-order');
+    button.disabled = true;
+    try {
+      await api(`/api/vendors/me/orders/${encodeURIComponent(order.id)}/confirm`, { method: 'POST', body });
+      closeModal('order-modal');
+      toast('Order confirmed. The buyer can now pay and upload proof.');
+      await loadOrders();
+    } catch (err) {
+      showFieldError(errorEl, err.message);
+      button.disabled = false;
+    }
+  });
+
+  document.getElementById('decline-order').addEventListener('click', async () => {
+    const reason = window.prompt('Reason for declining (shown to the buyer):', '');
+    if (reason === null) return;
+    try {
+      await api(`/api/vendors/me/orders/${encodeURIComponent(order.id)}/confirm`, {
+        method: 'POST',
+        body: { action: 'decline', declineReason: reason.trim() || 'Vendor declined the order' },
+      });
+      closeModal('order-modal');
+      toast('Order declined.');
+      await loadOrders();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+}
+
+function proofReviewHtml(order) {
+  const proofUrl = `/api/vendors/me/orders/${encodeURIComponent(order.id)}/payment-proof`;
+  return `
+    <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+    <h3 style="font-size:15px;margin-bottom:8px">Verify EcoCash payment</h3>
+    <p class="hint" style="margin-top:0">Check the screenshot against your EcoCash statement before confirming.</p>
+    <div id="proof-error" class="error-msg hidden" role="alert"></div>
+    <div class="proof-frame">
+      <img class="proof-image" src="${proofUrl}" alt="Buyer's EcoCash payment confirmation screenshot"
+        loading="lazy" decoding="async" style="display:none">
+      <div id="proof-loading"><span class="spinner" role="status" aria-label="Loading payment proof"></span></div>
+    </div>
+    <label for="reject-reason">Rejection reason (only needed if you reject)</label>
+    <input type="text" id="reject-reason" maxlength="500" placeholder="e.g. Amount does not match order total">
+    <div class="modal-actions" style="justify-content:space-between">
+      <button type="button" class="btn-danger" id="reject-proof">Reject payment</button>
+      <button type="button" class="btn-success" id="accept-proof">Confirm payment received</button>
+    </div>`;
+}
+
+function bindProofReview(order) {
+  const img = document.getElementById('order-modal-content').querySelector('.proof-image');
+  const loading = document.getElementById('proof-loading');
+  img.addEventListener('load', () => { loading.classList.add('hidden'); img.style.display = 'block'; });
+  img.addEventListener('error', () => {
+    loading.innerHTML = '<p class="error-msg">Could not load the payment proof image.</p>';
+  });
+
+  document.getElementById('accept-proof').addEventListener('click', () => reviewProof(order.id, 'confirmed', ''));
+  document.getElementById('reject-proof').addEventListener('click', () => {
+    const reason = document.getElementById('reject-reason').value.trim();
+    if (!reason) {
+      showFieldError(document.getElementById('proof-error'), 'Enter a reason so the buyer can fix the payment.');
+      document.getElementById('reject-reason').focus();
+      return;
+    }
+    reviewProof(order.id, 'payment_rejected', reason);
+  });
+}
+
+async function reviewProof(orderId, status, rejectionReason) {
+  try {
+    await api(`/api/vendors/me/orders/${encodeURIComponent(orderId)}/payment-proof`, {
+      method: 'POST',
+      body: { status, rejectionReason },
+    });
+    closeModal('order-modal');
+    toast(status === 'confirmed'
+      ? 'Payment confirmed. Deliver the order and mark it delivered when done.'
+      : 'Payment rejected. The buyer can upload corrected proof.');
+    await loadOrders();
+  } catch (e) {
+    showFieldError(document.getElementById('proof-error'), e.message);
+  }
+}
+
+async function setOrderStatus(orderId, status) {
+  try {
+    await api(`/api/vendors/me/orders/${encodeURIComponent(orderId)}`, { method: 'PATCH', body: { status } });
+    closeModal('order-modal');
+    toast('Order marked delivered.');
+    await loadOrders();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+// ── Profile ──────────────────────────────────────────────────────────
+
+async function loadProfile() {
+  try {
+    const data = await api('/api/vendors/me');
+    vendor = data.vendor;
+    document.getElementById('vendor-name').textContent = vendor.name || 'UsizoAI Supplier';
+    document.getElementById('profile-name').value = vendor.name || '';
+    document.getElementById('profile-location').value = vendor.location || '';
+    document.getElementById('profile-description').value = vendor.description || '';
+    document.getElementById('profile-phone').value = vendor.phone || '';
+    document.getElementById('profile-ecocash').value = vendor.ecocashNumber || '';
+    document.getElementById('profile-whatsapp').value = vendor.whatsapp || '';
+  } catch (e) {
+    const errorEl = document.getElementById('profile-error');
+    showFieldError(errorEl, e.message);
+  }
+}
+
+document.getElementById('profile-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errorEl = document.getElementById('profile-error');
+  errorEl.classList.add('hidden');
+  const name = document.getElementById('profile-name').value.trim();
+  const location = document.getElementById('profile-location').value.trim();
+  if (!name || !location) return showFieldError(errorEl, 'Business name and location are required.');
+  try {
+    const data = await api('/api/vendors/me', {
+      method: 'PATCH',
+      body: {
+        name,
+        location,
+        description: document.getElementById('profile-description').value.trim(),
+        phone: document.getElementById('profile-phone').value.trim(),
+        ecocashNumber: document.getElementById('profile-ecocash').value.trim(),
+        whatsapp: document.getElementById('profile-whatsapp').value.trim(),
+      },
+    });
+    vendor = data.vendor;
+    document.getElementById('vendor-name').textContent = vendor.name || 'UsizoAI Supplier';
+    toast('Profile saved.');
+  } catch (err) {
+    showFieldError(errorEl, err.message);
+  }
+});
+
+// ── Boot ─────────────────────────────────────────────────────────────
+
+const saved = localStorage.getItem('vendor_token');
+if (saved) {
+  token = saved;
+  api('/api/vendors/me')
+    .then(data => { vendor = data.vendor; enterApp(); })
+    .catch(() => logout());
+}
+</script>
+</body>
+</html>

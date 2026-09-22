@@ -519,7 +519,70 @@ def test_vendor_orders_list(client):
     assert orders[0]["vendorId"] == vid
 
 
-# ── Reviews ─────────────────────────────────────────────────────────
+def test_vendor_payment_proof_review_flow(client):
+    """Vendor can view and approve/reject a buyer's uploaded payment proof."""
+    reg = client.post(
+        "/api/vendors/register",
+        json={
+            "businessName": "Proof Shop",
+            "location": "Kisumu",
+            "phone": "+254700000010",
+            "pin": "1234",
+        },
+    )
+    token = reg.json()["token"]
+    headers = _auth_header(token)
+    vid = reg.json()["vendor"]["id"]
+
+    product = client.post(
+        "/api/vendors/me/products",
+        json={"name": "Honey", "priceCents": 3000},
+        headers=headers,
+    ).json()["product"]
+
+    r = client.post("/api/devices/register", json={})
+    did = r.json()["deviceId"]
+    order = client.post(
+        f"/api/devices/{did}/orders",
+        json={
+            "vendorId": vid,
+            "totalCents": 3000,
+            "items": [{"productId": product["id"], "quantity": 1}],
+        },
+    ).json()["order"]
+    order_id = order["id"]
+
+    # No proof uploaded yet.
+    assert client.get(
+        f"/api/vendors/me/orders/{order_id}/payment-proof", headers=headers
+    ).status_code == 404
+
+    # Upload a proof image as the buyer.
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    upload = client.post(
+        f"/api/orders/{order_id}/payment-proof",
+        files={"file": ("proof.png", io.BytesIO(png), "image/png")},
+        headers={"X-Device-Id": did},
+    )
+    assert upload.status_code == 200
+
+    # Vendor can view it and confirm the payment.
+    view = client.get(
+        f"/api/vendors/me/orders/{order_id}/payment-proof", headers=headers
+    )
+    assert view.status_code == 200
+    assert view.headers["content-type"].startswith("image/png")
+
+    review = client.post(
+        f"/api/vendors/me/orders/{order_id}/payment-proof",
+        json={"status": "confirmed"},
+        headers=headers,
+    )
+    assert review.status_code == 200
+    assert review.json()["order"]["status"] == "confirmed"
+
+
+# ── Reviews ─────────────────────────────────────────────────────
 
 
 def test_create_review(client):
