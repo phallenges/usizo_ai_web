@@ -447,9 +447,11 @@ ADMIN_HTML = Path(__file__).parent / "static" / "admin.html"
 VENDOR_HTML = Path(__file__).parent / "static" / "vendor.html"
 LANDING_HTML = Path(__file__).parent / "static" / "index.html"
 FAVICON = Path(__file__).parent / "static" / "favicon.png"
+# Defaults to GitHub's permanent "latest release" asset URL so the landing
+# page always serves the newest published APK without a code change.
 APK_DOWNLOAD_URL = os.getenv(
     "APK_DOWNLOAD_URL",
-    "https://github.com/phallenges/usizo_ai_web/releases/download/v1.0.0/UsizoAI.apk",
+    "https://github.com/phallenges/usizo_ai_web/releases/latest/download/UsizoAI.apk",
 ).strip()
 
 
