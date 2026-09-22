@@ -4,6 +4,15 @@ All notable changes to UsizoAI are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.1] - 2026-09-22
+
+### Fixed
+
+- Production supplier seed now normalizes the supplier phone number so
+  `/vendor` sign-in works, migrates legacy rows stored with spaced phone
+  numbers, and resets the supplier PIN on boot. The PIN defaults to `1234`
+  and can be overridden with `SEED_SUPPLIER_PIN`.
+
 ## [1.1.0] - 2026-09-22
 
 ### Added

@@ -128,33 +128,63 @@ async def lifespan(app: FastAPI):
 
 
 def _ensure_production_supplier() -> None:
-    """Keep production limited to the current supplier until products are added."""
+    """Keep production limited to the current supplier until products are added.
+
+    Repairs the seeded supplier row on every boot: older deploys stored the
+    phone with spaces (which made vendor login impossible) and used a
+    guessable placeholder PIN. The seed PIN comes from SEED_SUPPLIER_PIN
+    and defaults to 1234.
+    """
+    seed_phone = normalize_phone("+263 780747989")
+    seed_pin = os.getenv("SEED_SUPPLIER_PIN", "1234").strip()
+    if not re.fullmatch(r"\d{4,64}", seed_pin):
+        raise RuntimeError("SEED_SUPPLIER_PIN must contain 4 to 64 digits.")
+
+    def fresh_pin_hash() -> str:
+        return bcrypt.hashpw(seed_pin.encode(), bcrypt.gensalt()).decode("utf-8")
+
     now = utc_now()
     with db() as conn:
         conn.execute("DELETE FROM products")
+        # Migrate legacy rows that stored the phone with spaces before the
+        # comparisons below run, or the supplier row would not match them.
+        conn.execute(
+            "UPDATE vendors SET phone = ?, whatsapp = ?, ecocash_number = ?, updated_at = ? "
+            "WHERE phone = ?",
+            (seed_phone, seed_phone, seed_phone, now, "+263 780747989"),
+        )
         conn.execute(
             "DELETE FROM vendors WHERE phone <> ? AND NOT EXISTS "
             "(SELECT 1 FROM orders WHERE orders.vendor_id = vendors.id)",
-            ("+263 780747989",),
+            (seed_phone,),
         )
         existing = conn.execute(
-            "SELECT id FROM vendors WHERE phone = ?",
-            ("+263 780747989",),
+            "SELECT id, pin_hash FROM vendors WHERE phone = ?",
+            (seed_phone,),
         ).fetchone()
         if existing:
-            conn.execute(
-                "UPDATE vendors SET name = ?, location = ?, description = ?, "
-                "whatsapp = ?, ecocash_number = ?, updated_at = ? WHERE phone = ?",
-                (
-                    "Treasure Motsu",
-                    "Bulawayo",
-                    "Supplier for UsizoAI marketplace products.",
-                    "+263 780747989",
-                    "+263 780747989",
-                    now,
-                    "+263 780747989",
-                ),
+            try:
+                pin_matches = bcrypt.checkpw(seed_pin.encode(), existing["pin_hash"].encode())
+            except ValueError:
+                pin_matches = False
+            assignments = (
+                "name = ?, location = ?, description = ?, phone = ?, "
+                "whatsapp = ?, ecocash_number = ?, updated_at = ?"
             )
+            params: list = [
+                "Treasure Motsu",
+                "Bulawayo",
+                "Supplier for UsizoAI marketplace products.",
+                seed_phone,
+                seed_phone,
+                seed_phone,
+                now,
+            ]
+            if not pin_matches:
+                assignments += ", pin_hash = ?"
+                params.append(fresh_pin_hash())
+            params.append(existing["id"])
+            conn.execute(f"UPDATE vendors SET {assignments} WHERE id = ?", params)
         else:
             conn.execute(
                 """
@@ -168,10 +198,10 @@ def _ensure_production_supplier() -> None:
                     "Treasure Motsu",
                     "Bulawayo",
                     "Supplier for UsizoAI marketplace products.",
-                    "+263 780747989",
-                    "+263 780747989",
-                    "+263 780747989",
-                    bcrypt.hashpw(b"change-this-pin", bcrypt.gensalt()).decode("utf-8"),
+                    seed_phone,
+                    seed_phone,
+                    seed_phone,
+                    fresh_pin_hash(),
                     now,
                     now,
                 ),

@@ -43,6 +43,7 @@ JWT_SECRET=<generated secret, at least 32 characters>
 ADMIN_TOKEN=<generated admin token>
 DATABASE_URL=<provided by the usizoai-db Render database>
 CORS_ALLOWED_ORIGINS=https://usizoai.onrender.com
+SEED_SUPPLIER_PIN=<supplier portal PIN, defaults to 1234>
 ```
 
 For automatic Plus token email delivery, also set:

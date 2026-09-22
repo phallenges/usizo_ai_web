@@ -519,6 +519,54 @@ def test_vendor_orders_list(client):
     assert orders[0]["vendorId"] == vid
 
 
+def test_production_supplier_seed_repairs_legacy_row(client):
+    """Seed repair normalizes the spaced phone and resets the PIN to 1234."""
+    import app.main as main_module
+
+    # Simulate a legacy row: phone stored with spaces and a stale hash.
+    with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO vendors (
+              id, name, location, description, phone, whatsapp,
+              ecocash_number, rating, review_count, pin_hash, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
+            """,
+            (
+                "vendor-legacy-seed",
+                "Old Row",
+                "Bulawayo",
+                "Legacy seeded supplier.",
+                "+263 780747989",
+                "+263 780747989",
+                "+263 780747989",
+                "$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidiu",
+                utc_now(),
+                utc_now(),
+            ),
+        )
+
+    main_module._ensure_production_supplier()
+
+    r = client.post(
+        "/api/vendors/login",
+        json={"phone": "+263 780747989", "pin": "1234"},
+    )
+    assert r.status_code == 200
+    assert r.json()["vendor"]["name"] == "Treasure Motsu"
+
+    # A missing row is re-inserted with the same normalized phone and PIN.
+    with db() as conn:
+        conn.execute("DELETE FROM vendors WHERE phone = ?", ("+263780747989",))
+    main_module._ensure_production_supplier()
+    r = client.post(
+        "/api/vendors/login",
+        json={"phone": "+263780747989", "pin": "1234"},
+    )
+    assert r.status_code == 200
+    assert r.json()["vendor"]["name"] == "Treasure Motsu"
+
+
 def test_vendor_payment_proof_review_flow(client):
     """Vendor can view and approve/reject a buyer's uploaded payment proof."""
     reg = client.post(
