@@ -69,8 +69,8 @@ GET /api/app/version?currentVersion=1.0.0
 ```json
 {
   "ok": true,
-  "latestVersion": "1.1.0",
-  "latestTag": "v1.1.0",
+  "latestVersion": "1.2.0",
+  "latestTag": "v1.2.0",
   "source": "github",
   "downloadUrl": "https://github.com/phallenges/usizo_ai_web/releases/latest/download/UsizoAI.apk",
   "currentVersion": "1.0.0",
