@@ -1,9 +1,11 @@
 import json
 from email.message import EmailMessage
 import hmac
+import ipaddress
 import logging
 import os
 import re
+import secrets
 import smtplib
 import ssl
 import time
@@ -28,6 +30,7 @@ from starlette.requests import Request
 from .database import (
     DATABASE_URL,
     db,
+    device_token_digest,
     init_schema,
     row_to_product,
     row_to_vendor,
@@ -63,14 +66,25 @@ SMTP_FROM = os.getenv("SMTP_FROM", "").strip()
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Apply bounded in-memory limits per client process and IP address."""
+    """Apply bounded in-memory limits per client process and trusted IP.
 
-    def __init__(self, app):
-        super().__init__(app)
-        self._requests: dict[tuple[str, str], tuple[int, float]] = {}
+    The reverse proxy (for example Render's router) appends the real peer
+    address to ``X-Forwarded-For``, so only the LAST entry is trustworthy —
+    every earlier entry is client-controlled and would let an attacker mint
+    unlimited fresh buckets by rotating fake values.
+    """
+
+    # Class-level state so every instance shares one bucket table and tests
+    # can reset it between cases.
+    _requests: dict[tuple[str, str], tuple[int, float]] = {}
 
     def _limit_for(self, path: str) -> int:
-        if path in ("/api/auth/register", "/api/auth/login"):
+        if path in (
+            "/api/auth/register",
+            "/api/auth/login",
+            "/api/vendors/login",
+            "/api/admin/login",
+        ):
             return RATE_LIMIT_AUTH
         if path.endswith("/payment-proof"):
             return RATE_LIMIT_UPLOAD
@@ -78,18 +92,28 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return RATE_LIMIT_SUBMISSIONS
         return RATE_LIMIT_DEFAULT
 
+    @staticmethod
+    def _client_ip(request: Request) -> str:
+        """Resolve the rate-limit identity from the trusted proxy chain."""
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            candidate = forwarded_for.split(",")[-1].strip()
+            try:
+                ipaddress.ip_address(candidate)
+            except ValueError:
+                pass  # Not an IP — fall back to the socket peer.
+            else:
+                return candidate
+        return request.client.host if request.client else "unknown"
+
     async def dispatch(self, request: Request, call_next):
         now = time.monotonic()
         path = request.url.path
         limit = self._limit_for(path)
-        forwarded_for = request.headers.get("x-forwarded-for")
-        client_ip = (
-            forwarded_for.split(",")[0].strip()
-            if forwarded_for
-            else (request.client.host if request.client else "unknown")
-        )
+        client_ip = self._client_ip(request)
         key = (client_ip, path)
-        count, window_start = self._requests.get(key, (0, now))
+        requests = RateLimitMiddleware._requests
+        count, window_start = requests.get(key, (0, now))
         if now - window_start >= RATE_LIMIT_WINDOW_SECONDS:
             count, window_start = 0, now
         if count >= limit:
@@ -99,11 +123,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Too many requests. Please try again later."},
                 headers={"Retry-After": str(retry_after)},
             )
-        self._requests[key] = (count + 1, window_start)
-        if len(self._requests) > 10_000:
-            self._requests = {
+        requests[key] = (count + 1, window_start)
+        if len(requests) > 10_000:
+            RateLimitMiddleware._requests = {
                 item_key: item
-                for item_key, item in self._requests.items()
+                for item_key, item in requests.items()
                 if now - item[1] < RATE_LIMIT_WINDOW_SECONDS
             }
         return await call_next(request)
@@ -134,11 +158,18 @@ def _ensure_production_supplier() -> None:
 
     Repairs the seeded supplier row on every boot: older deploys stored the
     phone with spaces (which made vendor login impossible) and used a
-    guessable placeholder PIN. The seed PIN comes from SEED_SUPPLIER_PIN
-    and defaults to 1234.
+    guessable PIN. The seed PIN comes from SEED_SUPPLIER_PIN; production
+    has no default (a placeholder PIN would expose the supplier portal),
+    while local development falls back to 1234.
     """
     seed_phone = normalize_phone("+263 780747989")
-    seed_pin = os.getenv("SEED_SUPPLIER_PIN", "1234").strip()
+    default_pin = "" if ENVIRONMENT == "production" else "1234"
+    seed_pin = (os.getenv("SEED_SUPPLIER_PIN") or default_pin).strip()
+    if not seed_pin:
+        raise RuntimeError(
+            "SEED_SUPPLIER_PIN must be set in production "
+            "(4 to 64 digits; set it in the Render dashboard)."
+        )
     if not re.fullmatch(r"\d{4,64}", seed_pin):
         raise RuntimeError("SEED_SUPPLIER_PIN must contain 4 to 64 digits.")
 
@@ -303,6 +334,30 @@ def ensure_device(device_id: str) -> None:
             "INSERT INTO subscriptions (device_id, is_premium, checks_used, updated_at) VALUES (?, 0, 0, ?)",
             (device_id, now),
         )
+
+
+def require_device(
+    device_id: str,
+    x_device_token: Optional[str] = Header(default=None),
+) -> str:
+    """Authenticate a device-scoped request with its per-device secret.
+
+    The device id in the path is not a credential: ids leak through vendor
+    order payloads and logs, so every device endpoint must additionally
+    present the token issued by /api/devices/register.
+    """
+    if not x_device_token:
+        raise HTTPException(status_code=401, detail="Device authentication required.")
+    with db() as conn:
+        row = conn.execute(
+            "SELECT auth_token_hash FROM devices WHERE id = ?",
+            (device_id,),
+        ).fetchone()
+    if not row or not row["auth_token_hash"]:
+        raise HTTPException(status_code=401, detail="Invalid device credentials.")
+    if not hmac.compare_digest(device_token_digest(x_device_token), row["auth_token_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid device credentials.")
+    return device_id
 
 
 class VendorRegisterBody(BaseModel):
@@ -1124,28 +1179,77 @@ def account_me(account_id: str = Depends(get_account_id)):
 
 
 @app.post("/api/devices/register")
-def device_register(body: DeviceRegisterBody, authorization: Optional[str] = Header(default=None)):
-    import uuid
+def device_register(
+    body: DeviceRegisterBody,
+    authorization: Optional[str] = Header(default=None),
+    x_device_token: Optional[str] = Header(default=None),
+):
+    """Create or re-assert a device identity and issue its auth token.
 
-    device_id = body.deviceId or str(uuid.uuid4())
-    ensure_device(device_id)
+    A brand-new device id gets a fresh 256-bit token (only its hash is
+    stored). An existing device id can only be re-registered by a caller
+    that presents the current token — knowing the id alone (for example
+    from a vendor order payload) is no longer enough to claim it.
+    """
     account_id = None
     if authorization and authorization.startswith("Bearer "):
         try:
             account_id = get_account_id(authorization)
         except HTTPException:
             account_id = None
+
+    requested_id = (body.deviceId or "").strip()
+    device_id = requested_id or str(uuid.uuid4())
+    device_token: Optional[str] = None
+
+    if requested_id:
+        with db() as conn:
+            row = conn.execute(
+                "SELECT auth_token_hash FROM devices WHERE id = ?",
+                (requested_id,),
+            ).fetchone()
+        if row:
+            stored = row["auth_token_hash"]
+            presented = device_token_digest(x_device_token) if x_device_token else None
+            if not stored or not presented or not hmac.compare_digest(presented, stored):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Invalid device credentials. Register again to obtain a new device identity.",
+                )
+            device_token = x_device_token
+
+    if device_token is None:
+        device_token = secrets.token_urlsafe(32)
+        ensure_device(device_id)
+        with db() as conn:
+            cursor = conn.execute(
+                "UPDATE devices SET auth_token_hash = ? WHERE id = ? AND auth_token_hash IS NULL",
+                (device_token_digest(device_token), device_id),
+            )
+            if cursor.rowcount == 0:
+                # Lost a first-registration race: another caller already
+                # owns this identity, and their token is the valid one.
+                raise HTTPException(
+                    status_code=409,
+                    detail="Device identity is already registered.",
+                )
+
     with db() as conn:
         if account_id:
-            conn.execute("UPDATE devices SET user_id = ?, updated_at = ? WHERE id = ?", (account_id, utc_now(), device_id))
+            conn.execute(
+                "UPDATE devices SET user_id = ?, updated_at = ? WHERE id = ?",
+                (account_id, utc_now(), device_id),
+            )
         else:
-            conn.execute("UPDATE devices SET updated_at = ? WHERE id = ?", (utc_now(), device_id))
-    return {"deviceId": device_id}
+            conn.execute(
+                "UPDATE devices SET updated_at = ? WHERE id = ?",
+                (utc_now(), device_id),
+            )
+    return {"deviceId": device_id, "deviceToken": device_token}
 
 
 @app.get("/api/devices/{device_id}/state")
-def device_state(device_id: str):
-    ensure_device(device_id)
+def device_state(device_id: str, _auth: str = Depends(require_device)):
     with db() as conn:
         profile = conn.execute(
             "SELECT * FROM device_profiles WHERE device_id = ?", (device_id,)
@@ -1191,8 +1295,7 @@ def device_state(device_id: str):
 
 
 @app.put("/api/devices/{device_id}/profile")
-def device_profile(device_id: str, body: ProfileBody):
-    ensure_device(device_id)
+def device_profile(device_id: str, body: ProfileBody, _auth: str = Depends(require_device)):
     now = utc_now()
     with db() as conn:
         conn.execute(
@@ -1231,8 +1334,7 @@ def device_profile(device_id: str, body: ProfileBody):
 
 
 @app.post("/api/devices/{device_id}/check")
-def device_check(device_id: str):
-    ensure_device(device_id)
+def device_check(device_id: str, _auth: str = Depends(require_device)):
     with db() as conn:
         sub = conn.execute(
             "SELECT * FROM subscriptions WHERE device_id = ?", (device_id,)
@@ -1262,8 +1364,7 @@ def device_check(device_id: str):
 
 
 @app.post("/api/devices/{device_id}/subscriptions/activate")
-def device_activate(device_id: str, body: ActivateBody):
-    ensure_device(device_id)
+def device_activate(device_id: str, body: ActivateBody, _auth: str = Depends(require_device)):
     now = utc_now()
     with db() as conn:
         token = conn.execute(
@@ -1326,8 +1427,8 @@ def submit_plus_payment(
     device_id: str,
     body: PlusPaymentSubmissionBody,
     authorization: Optional[str] = Header(default=None),
+    _auth: str = Depends(require_device),
 ):
-    ensure_device(device_id)
     delivery_email = body.deliveryEmail.strip().lower()
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", delivery_email):
         raise HTTPException(status_code=400, detail="Enter a valid email address.")
@@ -1392,10 +1493,13 @@ def submit_plus_payment(
 
 
 def order_payload(row) -> dict:
-    """Return the customer-safe order representation used by both portals."""
+    """Return the customer-safe order representation used by both portals.
+
+    The owning device id is deliberately omitted: it is a credential for
+    device-scoped endpoints and must not leak to vendors or customers.
+    """
     return {
         "id": row["id"],
-        "deviceId": row["device_id"],
         "vendorId": row["vendor_id"],
         "reference": row["reference"],
         "totalCents": row["total_cents"],
@@ -1516,8 +1620,7 @@ def vendor_get_payment_proof(order_id: str, vendor_id: str = Depends(get_vendor_
 
 
 @app.post("/api/devices/{device_id}/orders")
-def device_order(device_id: str, body: OrderBody):
-    ensure_device(device_id)
+def device_order(device_id: str, body: OrderBody, _auth: str = Depends(require_device)):
     if not body.vendorId or not body.items:
         raise HTTPException(status_code=400, detail="vendorId and items are required.")
 
@@ -1717,7 +1820,6 @@ def vendor_orders(vendor_id: str = Depends(get_vendor_id)):
         "orders": [
             {
                 "id": row["id"],
-                "deviceId": row["device_id"],
                 "vendorId": row["vendor_id"],
                 "reference": row["reference"],
                 "totalCents": row["total_cents"],

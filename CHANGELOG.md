@@ -4,6 +4,27 @@ All notable changes to UsizoAI are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Security
+
+- Device-scoped endpoints (`/api/devices/...`) now require the per-device
+  `X-Device-Token` issued by `/api/devices/register`; a device id alone no
+  longer grants access to medical profiles, orders, free checks, or Plus
+  activation. Re-registering an existing device id requires its current
+  token, and only the token's SHA-256 hash is stored server-side.
+- Vendor- and customer-facing order payloads no longer include the owning
+  device id, which is a credential for the endpoints above.
+- Rate limiting now keys on the trusted (last) `X-Forwarded-For` entry
+  appended by the reverse proxy, so rotating spoofed prefixes can no longer
+  bypass limits; `/api/vendors/login` and `/api/admin/login` now use the
+  strict auth bucket alongside `/api/auth/*`.
+- Production refuses to boot without an explicit `SEED_SUPPLIER_PIN`
+  instead of falling back to the placeholder `1234`.
+- Fixed four client methods that sent a literal placeholder instead of the
+  account/vendor `Bearer` token, silently failing authentication.
+- Removed leftover Flutterwave test keys from the repository working tree.
+
 ## [1.1.1] - 2026-09-22
 
 ### Fixed

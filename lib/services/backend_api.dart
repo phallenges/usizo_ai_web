@@ -29,6 +29,7 @@ class BackendApi {
     defaultValue: 'https://usizoai.onrender.com',
   );
   static const _deviceIdKey = 'api_device_id';
+  static const _deviceTokenKey = 'api_device_token';
   static const _vendorTokenKey = 'api_vendor_token';
   static const _vendorIdKey = 'api_vendor_id';
   static const _accountTokenKey = 'api_account_token';
@@ -210,25 +211,88 @@ class BackendApi {
     return id;
   }
 
-  Future<void> _ensureRegistered() async {
-    if (!isConfigured) return;
-    final id = await deviceId();
-    final token = await _accountToken();
-    try {
-      await _request(
-        () => _client.post(
-          Uri.parse('$_baseUrl/api/devices/register'),
-          headers: {
-            'Content-Type': 'application/json',
-            if (token != null) 'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode({'deviceId': id}),
-        ),
-        timeout: const Duration(seconds: 8),
+  Future<String?> deviceToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_deviceTokenKey);
+  }
+
+  /// Headers for device-scoped calls: the device token is the credential.
+  /// The id in the URL alone proves nothing — ids leak through order data.
+  Future<Map<String, String>> _deviceHeaders({bool json = false}) async {
+    final token = await deviceToken();
+    return {
+      if (json) 'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'X-Device-Token': token,
+    };
+  }
+
+  /// Single-flight guard so concurrent screen calls cannot race the first
+  /// registration for the same identity.
+  Future<void>? _registerInFlight;
+
+  Future<void> _ensureRegistered() {
+    if (!isConfigured) return Future<void>.value();
+    return _registerInFlight ??= _registerDevice().whenComplete(() {
+      _registerInFlight = null;
+    });
+  }
+
+  Future<void> _registerDevice() async {
+    final prefs = await SharedPreferences.getInstance();
+    var id = prefs.getString(_deviceIdKey) ?? '';
+    var storedToken = prefs.getString(_deviceTokenKey);
+    final accountToken = await _accountToken();
+
+    var response = await _postRegister(
+      deviceId: id,
+      deviceToken: storedToken,
+      accountToken: accountToken,
+    );
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      // The stored identity predates device tokens or was rejected —
+      // drop it and mint a fresh one on the next request.
+      await prefs.remove(_deviceIdKey);
+      await prefs.remove(_deviceTokenKey);
+      id = '';
+      storedToken = null;
+      response = await _postRegister(
+        deviceId: '',
+        deviceToken: null,
+        accountToken: accountToken,
       );
-    } catch (_) {
-      // Offline or server down — continue with local state.
     }
+    if (response.statusCode != 200) return;
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final newId = data['deviceId'] as String?;
+    final newToken = data['deviceToken'] as String?;
+    if (newId != null && newId.isNotEmpty) {
+      await prefs.setString(_deviceIdKey, newId);
+    }
+    if (newToken != null && newToken.isNotEmpty) {
+      await prefs.setString(_deviceTokenKey, newToken);
+    }
+  }
+
+  Future<http.Response> _postRegister({
+    required String deviceId,
+    required String? deviceToken,
+    required String? accountToken,
+  }) {
+    return _request(
+      () => _client.post(
+        Uri.parse('$_baseUrl/api/devices/register'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (accountToken != null) 'Authorization': 'Bearer $accountToken',
+          if (deviceToken != null && deviceToken.isNotEmpty)
+            'X-Device-Token': deviceToken,
+        },
+        body: jsonEncode({
+          if (deviceId.isNotEmpty) 'deviceId': deviceId,
+        }),
+      ),
+      timeout: const Duration(seconds: 8),
+    );
   }
 
   // ── Catalog ──────────────────────────────────────────────────────
@@ -340,8 +404,12 @@ class BackendApi {
     await _ensureRegistered();
     final id = await deviceId();
     try {
+      final headers = await _deviceHeaders();
       final r = await _request(
-        () => _client.get(Uri.parse('$_baseUrl/api/devices/$id/state')),
+        () => _client.get(
+          Uri.parse('$_baseUrl/api/devices/$id/state'),
+          headers: headers,
+        ),
       );
       if (r.statusCode != 200) return null;
       return jsonDecode(r.body) as Map<String, dynamic>;
@@ -355,10 +423,11 @@ class BackendApi {
     await _ensureRegistered();
     final id = await deviceId();
     try {
+      final headers = await _deviceHeaders(json: true);
       final r = await _request(
         () => _client.put(
           Uri.parse('$_baseUrl/api/devices/$id/profile'),
-          headers: const {'Content-Type': 'application/json'},
+          headers: headers,
           body: jsonEncode({
             'name': profile.name,
             'email': profile.email,
@@ -382,8 +451,12 @@ class BackendApi {
     await _ensureRegistered();
     final id = await deviceId();
     try {
+      final headers = await _deviceHeaders();
       final r = await _request(
-        () => _client.post(Uri.parse('$_baseUrl/api/devices/$id/check')),
+        () => _client.post(
+          Uri.parse('$_baseUrl/api/devices/$id/check'),
+          headers: headers,
+        ),
       );
       if (r.statusCode != 200) return null;
       return jsonDecode(r.body) as Map<String, dynamic>;
@@ -399,10 +472,11 @@ class BackendApi {
     await _ensureRegistered();
     final id = await deviceId();
     try {
+      final headers = await _deviceHeaders(json: true);
       final r = await _request(
         () => _client.post(
           Uri.parse('$_baseUrl/api/devices/$id/subscriptions/activate'),
-          headers: const {'Content-Type': 'application/json'},
+          headers: headers,
           body: jsonEncode({'token': token.trim()}),
         ),
         timeout: const Duration(seconds: 12),
@@ -426,13 +500,12 @@ class BackendApi {
     final id = await deviceId();
     final token = await _accountToken();
     try {
+      final headers = await _deviceHeaders(json: true);
+      if (token != null) headers['Authorization'] = 'Bearer $token';
       final r = await _request(
         () => _client.post(
           Uri.parse('$_baseUrl/api/devices/$id/plus-payment-submissions'),
-          headers: {
-            'Content-Type': 'application/json',
-            if (token != null) 'Authorization': '******',
-          },
+          headers: headers,
           body: jsonEncode({
             'merchantReference': merchantReference.trim(),
             'confirmationMessage': confirmationMessage.trim(),
@@ -457,10 +530,11 @@ class BackendApi {
     await _ensureRegistered();
     final id = await deviceId();
     try {
+      final headers = await _deviceHeaders(json: true);
       final r = await _request(
         () => _client.post(
           Uri.parse('$_baseUrl/api/devices/$id/orders'),
-          headers: const {'Content-Type': 'application/json'},
+          headers: headers,
           body: jsonEncode({
             'vendorId': vendorId,
             'items': items,
@@ -645,7 +719,7 @@ class BackendApi {
           Uri.parse('$_baseUrl/api/vendors/me'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': '******',
+            'Authorization': 'Bearer $token',
           },
           body: jsonEncode({
             'name': name,
@@ -685,7 +759,7 @@ class BackendApi {
           Uri.parse('$_baseUrl/api/vendors/me/products'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': '******',
+            'Authorization': 'Bearer $token',
           },
           body: jsonEncode({
             'name': name,
@@ -718,7 +792,7 @@ class BackendApi {
           Uri.parse('$_baseUrl/api/vendors/me/products/${product.id}'),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': '******',
+            'Authorization': 'Bearer $token',
           },
           body: jsonEncode({
             'name': product.name,

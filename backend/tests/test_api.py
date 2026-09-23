@@ -19,8 +19,20 @@ from app.database import db, token_digest, utc_now  # noqa: E402
 @pytest.fixture()
 def client():
     """Yield a TestClient with lifespan (schema + seed) active."""
+    # Rate-limit buckets are class-level state shared across the whole
+    # session — reset them so tests cannot starve each other.
+    main_module.RateLimitMiddleware._requests.clear()
     with TestClient(app) as c:
         yield c
+
+
+def _register_device(client):
+    """Register a device; return (deviceId, headers carrying its token)."""
+    r = client.post("/api/devices/register", json={})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["deviceToken"]
+    return data["deviceId"], {"X-Device-Token": data["deviceToken"]}
 
 
 # ── Health ──────────────────────────────────────────────────────────
@@ -463,11 +475,9 @@ def test_product_crud(client):
 
 
 def test_device_register_and_state(client):
-    r = client.post("/api/devices/register", json={})
-    assert r.status_code == 200
-    did = r.json()["deviceId"]
+    did, device_headers = _register_device(client)
 
-    r2 = client.get(f"/api/devices/{did}/state")
+    r2 = client.get(f"/api/devices/{did}/state", headers=device_headers)
     assert r2.status_code == 200
     body = r2.json()
     assert body["subscription"]["isPremium"] is False
@@ -475,11 +485,11 @@ def test_device_register_and_state(client):
 
 
 def test_device_profile(client):
-    r = client.post("/api/devices/register", json={})
-    did = r.json()["deviceId"]
+    did, device_headers = _register_device(client)
 
     r2 = client.put(
         f"/api/devices/{did}/profile",
+        headers=device_headers,
         json={
             "name": "Test User",
             "email": "test@example.com",
@@ -492,24 +502,22 @@ def test_device_profile(client):
 
 
 def test_device_check_rate_limit(client):
-    r = client.post("/api/devices/register", json={})
-    did = r.json()["deviceId"]
+    did, device_headers = _register_device(client)
 
     # First 3 checks should be allowed
     for _ in range(3):
-        rc = client.post(f"/api/devices/{did}/check")
+        rc = client.post(f"/api/devices/{did}/check", headers=device_headers)
         assert rc.status_code == 200
         assert rc.json()["allowed"] is True
 
     # 4th check should be blocked
-    rc4 = client.post(f"/api/devices/{did}/check")
+    rc4 = client.post(f"/api/devices/{did}/check", headers=device_headers)
     assert rc4.status_code == 200
     assert rc4.json()["allowed"] is False
 
 
 def test_premium_activation(client):
-    r = client.post("/api/devices/register", json={})
-    did = r.json()["deviceId"]
+    did, device_headers = _register_device(client)
 
     token = "USIZO-SINGLE-USE-TEST-TOKEN"
     with db() as conn:
@@ -518,18 +526,26 @@ def test_premium_activation(client):
             (token_digest(token), "ECO-TEST-001", utc_now()),
         )
 
-    r2 = client.post(f"/api/devices/{did}/subscriptions/activate", json={"token": token})
+    r2 = client.post(
+        f"/api/devices/{did}/subscriptions/activate",
+        headers=device_headers,
+        json={"token": token},
+    )
     assert r2.status_code == 200
     assert r2.json()["isPremium"] is True
 
     # Now checks should always be allowed
     for _ in range(5):
-        rc = client.post(f"/api/devices/{did}/check")
+        rc = client.post(f"/api/devices/{did}/check", headers=device_headers)
         assert rc.json()["allowed"] is True
 
     # A paid token cannot be copied to another device.
-    second = client.post("/api/devices/register", json={}).json()["deviceId"]
-    reused = client.post(f"/api/devices/{second}/subscriptions/activate", json={"token": token})
+    second, second_headers = _register_device(client)
+    reused = client.post(
+        f"/api/devices/{second}/subscriptions/activate",
+        headers=second_headers,
+        json={"token": token},
+    )
     assert reused.status_code == 400
 
 
@@ -537,8 +553,7 @@ def test_premium_activation(client):
 
 
 def test_order_create(client):
-    r = client.post("/api/devices/register", json={})
-    did = r.json()["deviceId"]
+    did, device_headers = _register_device(client)
 
     vendor = client.post(
         "/api/vendors/register",
@@ -557,6 +572,7 @@ def test_order_create(client):
 
     r2 = client.post(
         f"/api/devices/{did}/orders",
+        headers=device_headers,
         json={
             "vendorId": vendor["vendor"]["id"],
             "totalCents": 1,  # Must be ignored by the server.
@@ -597,10 +613,10 @@ def test_vendor_order_update(client):
     ).json()["product"]
 
     # Create device + order
-    r = client.post("/api/devices/register", json={})
-    did = r.json()["deviceId"]
+    did, device_headers = _register_device(client)
     r2 = client.post(
         f"/api/devices/{did}/orders",
+        headers=device_headers,
         json={
             "vendorId": vid,
             "totalCents": 3000,
@@ -650,10 +666,10 @@ def test_vendor_orders_list(client):
     ).json()["product"]
 
     # Create device + order
-    r = client.post("/api/devices/register", json={})
-    did = r.json()["deviceId"]
+    did, device_headers = _register_device(client)
     client.post(
         f"/api/devices/{did}/orders",
+        headers=device_headers,
         json={
             "vendorId": vid,
             "totalCents": 2000,
@@ -666,6 +682,8 @@ def test_vendor_orders_list(client):
     orders = r2.json()["orders"]
     assert len(orders) >= 1
     assert orders[0]["vendorId"] == vid
+    # The customer's device id is a credential and must not leak to vendors.
+    assert "deviceId" not in orders[0]
 
 
 def test_production_supplier_seed_repairs_legacy_row(client):
@@ -737,10 +755,10 @@ def test_vendor_payment_proof_review_flow(client):
         headers=headers,
     ).json()["product"]
 
-    r = client.post("/api/devices/register", json={})
-    did = r.json()["deviceId"]
+    did, device_headers = _register_device(client)
     order = client.post(
         f"/api/devices/{did}/orders",
+        headers=device_headers,
         json={
             "vendorId": vid,
             "totalCents": 3000,
@@ -920,3 +938,158 @@ def test_image_upload_bad_type(client):
         headers=headers,
     )
     assert r2.status_code == 400
+
+
+# ── Security: device authentication & rate limiting ───────────────────
+
+
+def test_device_endpoints_require_token(client):
+    """A device id alone must not grant access to medical data or actions."""
+    did, _ = _register_device(client)
+
+    # No token presented.
+    assert client.get(f"/api/devices/{did}/state").status_code == 401
+    assert client.put(f"/api/devices/{did}/profile", json={}).status_code == 401
+    assert client.post(f"/api/devices/{did}/check").status_code == 401
+    assert (
+        client.post(
+            f"/api/devices/{did}/subscriptions/activate",
+            json={"token": "USIZO-NOPE"},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            f"/api/devices/{did}/orders",
+            json={"vendorId": "v", "items": [{"productId": "p", "quantity": 1}]},
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            f"/api/devices/{did}/plus-payment-submissions",
+            json={
+                "merchantReference": "ECO-99999",
+                "confirmationMessage": "Paid via EcoCash",
+                "deliveryEmail": "buyer@example.com",
+            },
+        ).status_code
+        == 401
+    )
+
+    # A forged token is rejected too.
+    forged = {"X-Device-Token": "not-the-real-token"}
+    assert client.get(f"/api/devices/{did}/state", headers=forged).status_code == 401
+
+    # Unknown device ids are indistinguishable from bad credentials.
+    assert (
+        client.get(
+            "/api/devices/does-not-exist/state",
+            headers={"X-Device-Token": "whatever"},
+        ).status_code
+        == 401
+    )
+
+
+def test_device_reregistration_requires_token(client):
+    """Knowing a leaked device id must not let an attacker claim it."""
+    did, device_headers = _register_device(client)
+
+    stolen = client.post("/api/devices/register", json={"deviceId": did})
+    assert stolen.status_code == 403
+
+    wrong = client.post(
+        "/api/devices/register",
+        json={"deviceId": did},
+        headers={"X-Device-Token": "forged-token"},
+    )
+    assert wrong.status_code == 403
+
+    owner = client.post(
+        "/api/devices/register",
+        json={"deviceId": did},
+        headers=device_headers,
+    )
+    assert owner.status_code == 200
+    assert owner.json()["deviceId"] == did
+    assert owner.json()["deviceToken"] == device_headers["X-Device-Token"]
+
+    # And the stolen id still cannot read the device state.
+    assert client.get(f"/api/devices/{did}/state").status_code == 401
+
+
+def test_legacy_device_without_token_hash_is_locked(client):
+    """Devices that predate token issuance cannot be accessed or claimed."""
+    now = utc_now()
+    with db() as conn:
+        conn.execute(
+            "INSERT INTO devices (id, created_at, updated_at) VALUES (?, ?, ?)",
+            ("legacy-device", now, now),
+        )
+        conn.execute(
+            "INSERT INTO device_profiles (device_id, updated_at) VALUES (?, ?)",
+            ("legacy-device", now),
+        )
+        conn.execute(
+            "INSERT INTO subscriptions (device_id, is_premium, checks_used, updated_at) VALUES (?, 0, 0, ?)",
+            ("legacy-device", now),
+        )
+
+    assert client.get("/api/devices/legacy-device/state").status_code == 401
+    claim = client.post("/api/devices/register", json={"deviceId": "legacy-device"})
+    assert claim.status_code == 403
+
+
+def test_rate_limit_uses_last_forwarded_for(client):
+    """Rotating spoofed prefixes must not mint fresh buckets: only the
+    proxy-appended (last) X-Forwarded-For entry is trusted."""
+    for i in range(10):
+        spoofed = {"X-Forwarded-For": f"203.0.113.{i}, 198.51.100.99"}
+        response = client.post("/api/auth/login", headers=spoofed, json={})
+        assert response.status_code == 422
+
+    limited = client.post(
+        "/api/auth/login",
+        headers={"X-Forwarded-For": "198.0.2.123, 198.51.100.99"},
+        json={},
+    )
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"]
+
+    # A different trusted hop still has its own bucket.
+    other = client.post(
+        "/api/auth/login",
+        headers={"X-Forwarded-For": "198.51.100.77"},
+        json={},
+    )
+    assert other.status_code == 422
+
+
+def test_admin_login_rate_limited(client, monkeypatch):
+    """Credential endpoints share the strict auth bucket."""
+    monkeypatch.setattr(main_module, "ADMIN_TOKEN", "a" * 40)
+    body = {"token": "wrong-token"}
+    for _ in range(10):
+        assert client.post("/api/admin/login", json=body).status_code == 401
+    assert client.post("/api/admin/login", json=body).status_code == 429
+
+
+def test_vendor_login_rate_limited(client, monkeypatch):
+    monkeypatch.setattr(main_module, "RATE_LIMIT_AUTH", 2)
+    body = {"phone": "+263780000999", "pin": "0000"}
+    for _ in range(2):
+        assert client.post("/api/vendors/login", json=body).status_code == 401
+    assert client.post("/api/vendors/login", json=body).status_code == 429
+
+
+def test_production_requires_explicit_supplier_pin(monkeypatch):
+    """Production must refuse the placeholder supplier PIN."""
+    monkeypatch.setattr(main_module, "ENVIRONMENT", "production")
+    monkeypatch.delenv("SEED_SUPPLIER_PIN", raising=False)
+    with pytest.raises(RuntimeError, match="SEED_SUPPLIER_PIN must be set"):
+        main_module._ensure_production_supplier()
+
+    # An empty value is rejected too, not silently defaulted.
+    monkeypatch.setenv("SEED_SUPPLIER_PIN", "")
+    with pytest.raises(RuntimeError, match="SEED_SUPPLIER_PIN must be set"):
+        main_module._ensure_production_supplier()

@@ -43,8 +43,12 @@ JWT_SECRET=<generated secret, at least 32 characters>
 ADMIN_TOKEN=<generated admin token>
 DATABASE_URL=<provided by the usizoai-db Render database>
 CORS_ALLOWED_ORIGINS=https://usizoai.onrender.com
-SEED_SUPPLIER_PIN=<supplier portal PIN, defaults to 1234>
+SEED_SUPPLIER_PIN=<4-64 digit supplier portal PIN; required, no default>
 ```
+
+The service refuses to start in production until `SEED_SUPPLIER_PIN` is set
+to a 4–64 digit value. Set it in the Render dashboard (it is declared with
+`sync: false` in `render.yaml` so the value never lives in the repository).
 
 For automatic Plus token email delivery, also set:
 

@@ -36,6 +36,21 @@ https://usizoai.onrender.com/download
 The admin dashboard uses the `ADMIN_TOKEN` value as a bearer token. It is not
 the same as a customer password.
 
+## Request security
+
+- Device-scoped endpoints (`/api/devices/...`) require the `X-Device-Token`
+  issued by `POST /api/devices/register`. The device id in the URL is not a
+  credential: ids may leak through order payloads, so only the token grants
+  access. Server-side only the token's SHA-256 hash is stored; devices that
+  predate token issuance must re-register for a new identity.
+- Rate limiting keys on the LAST entry of `X-Forwarded-For`, the entry the
+  trusted reverse proxy (Render's router) appends. Deployments must run
+  behind a proxy that appends this header — a direct public exposure would
+  let clients spoof their rate-limit identity.
+- Credential endpoints (`/api/auth/register`, `/api/auth/login`,
+  `/api/vendors/login`, `/api/admin/login`) share the stricter per-IP bucket
+  (`RATE_LIMIT_AUTH_PER_MINUTE`, default 10 per minute).
+
 ## Android APK downloads
 
 `/download` returns a `302` redirect to the newest published GitHub release

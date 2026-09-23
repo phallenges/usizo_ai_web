@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY,
   user_id TEXT REFERENCES users(id),
+  auth_token_hash TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -296,6 +297,7 @@ def _postgres_schema(conn: PostgresConnection) -> None:
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_instructions TEXT DEFAULT ''")
         conn.execute("ALTER TABLE orders ADD COLUMN IF NOT EXISTS vendor_notes TEXT DEFAULT ''")
         conn.execute("ALTER TABLE devices ADD COLUMN IF NOT EXISTS user_id TEXT REFERENCES users(id)")
+        conn.execute("ALTER TABLE devices ADD COLUMN IF NOT EXISTS auth_token_hash TEXT")
         conn.execute("ALTER TABLE device_profiles ADD COLUMN IF NOT EXISTS medical_conditions TEXT DEFAULT ''")
         conn.execute("ALTER TABLE device_profiles ADD COLUMN IF NOT EXISTS current_medications TEXT DEFAULT ''")
         conn.execute("ALTER TABLE plus_payment_submissions ADD COLUMN IF NOT EXISTS delivery_email TEXT DEFAULT ''")
@@ -336,6 +338,8 @@ def init_schema() -> None:
         device_columns = {row["name"] for row in conn.execute("PRAGMA table_info(devices)")}
         if "user_id" not in device_columns:
             conn.execute("ALTER TABLE devices ADD COLUMN user_id TEXT REFERENCES users(id)")
+        if "auth_token_hash" not in device_columns:
+            conn.execute("ALTER TABLE devices ADD COLUMN auth_token_hash TEXT")
         profile_columns = {
             row["name"] for row in conn.execute("PRAGMA table_info(device_profiles)")
         }
@@ -357,6 +361,15 @@ def init_schema() -> None:
 
 def token_digest(token: str) -> str:
     return hashlib.sha256(token.strip().upper().encode("utf-8")).hexdigest()
+
+
+def device_token_digest(token: str) -> str:
+    """Hash a device auth token.
+
+    Unlike token_digest, the value is case-sensitive: device tokens are
+    base64url strings where the exact casing is part of the secret.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def row_to_vendor(row: Any) -> dict:
