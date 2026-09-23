@@ -57,6 +57,44 @@ no backend change. Two rules follow from this:
 Set `APK_DOWNLOAD_URL` in Render to override the default and pin an exact
 release when a rollback is needed.
 
+### Version checks
+
+`GET /api/app/version` reports the published build so an installed app can
+decide whether to update:
+
+```text
+GET /api/app/version?currentVersion=1.0.0
+```
+
+```json
+{
+  "ok": true,
+  "latestVersion": "1.1.0",
+  "latestTag": "v1.1.0",
+  "downloadUrl": "https://github.com/phallenges/usizo_ai_web/releases/latest/download/UsizoAI.apk",
+  "currentVersion": "1.0.0",
+  "updateAvailable": true,
+  "minimumVersion": null,
+  "updateRequired": false
+}
+```
+
+The endpoint reads the newest release from the GitHub API and caches it for
+`APP_VERSION_CACHE_SECONDS` (default `600`) so repeated checks cannot exhaust
+the unauthenticated rate limit. Optional Render variables:
+
+```text
+GITHUB_TOKEN=<token that raises the GitHub API rate limit>
+APP_LATEST_VERSION=<version to report when GitHub is unreachable>
+APP_MINIMUM_VERSION=<oldest supported version; older apps get updateRequired>
+APP_VERSION_CACHE_SECONDS=600
+```
+
+The `+build` metadata in versions such as `1.1.0+2` is accepted encoded or
+unencoded. Because the APK is self-distributed, installing an update still
+requires the Android package installer, so the person must confirm the install;
+fully silent background updates require Google Play distribution.
+
 ## Plus payment and token operations
 
 The current flow is manual EcoCash verification:

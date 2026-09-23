@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 import bcrypt
+import httpx
 import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
@@ -447,12 +448,87 @@ ADMIN_HTML = Path(__file__).parent / "static" / "admin.html"
 VENDOR_HTML = Path(__file__).parent / "static" / "vendor.html"
 LANDING_HTML = Path(__file__).parent / "static" / "index.html"
 FAVICON = Path(__file__).parent / "static" / "favicon.png"
+# GitHub Releases is the distribution channel for the Android APK. Both
+# /download and /api/app/version resolve the repository's newest published
+# release, so publishing a release is enough to ship a new version.
+GITHUB_REPO = os.getenv("GITHUB_REPOSITORY", "phallenges/usizo_ai_web").strip()
+GITHUB_RELEASES_API = os.getenv(
+    "GITHUB_RELEASES_API",
+    f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
+).strip()
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+# Optional overrides so version checks still work if GitHub is unreachable.
+APP_LATEST_VERSION = os.getenv("APP_LATEST_VERSION", "").strip()
+APP_MINIMUM_VERSION = os.getenv("APP_MINIMUM_VERSION", "").strip()
+APP_VERSION_CACHE_SECONDS = int(os.getenv("APP_VERSION_CACHE_SECONDS", "600"))
+APP_VERSION_FAILURE_CACHE_SECONDS = 60
 # Defaults to GitHub's permanent "latest release" asset URL so the landing
 # page always serves the newest published APK without a code change.
 APK_DOWNLOAD_URL = os.getenv(
     "APK_DOWNLOAD_URL",
-    "https://github.com/phallenges/usizo_ai_web/releases/latest/download/UsizoAI.apk",
+    f"https://github.com/{GITHUB_REPO}/releases/latest/download/UsizoAI.apk",
 ).strip()
+_APK_RELEASE_CACHE: dict[str, object] = {"at": 0.0, "payload": None}
+
+
+def parse_version(value: str) -> Optional[tuple[int, int, int]]:
+    """Parse `1.1.0`, `v1.1.0+2`, or `1.1` into a comparable tuple."""
+    match = re.fullmatch(r"v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\+\d+)?", value.strip())
+    if not match:
+        return None
+    return tuple(int(part or 0) for part in match.groups())
+
+
+def latest_apk_release() -> Optional[dict]:
+    """Return the newest published APK release, or None when it is unreadable.
+
+    The result is cached briefly so repeated version checks cannot exhaust the
+    unauthenticated GitHub API rate limit.
+    """
+    payload = _APK_RELEASE_CACHE["payload"]
+    cached_at = float(_APK_RELEASE_CACHE["at"])
+    if cached_at:
+        ttl = (
+            APP_VERSION_CACHE_SECONDS
+            if payload is not None
+            else APP_VERSION_FAILURE_CACHE_SECONDS
+        )
+        if time.monotonic() - cached_at < ttl:
+            return payload  # type: ignore[return-value]
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "usizoai-api"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    try:
+        response = httpx.get(GITHUB_RELEASES_API, headers=headers, timeout=8.0)
+        response.raise_for_status()
+        release = response.json()
+    except Exception as exc:  # noqa: BLE001 - outages and bad payloads are expected
+        logger.warning("GitHub release lookup failed: %s", exc)
+        _APK_RELEASE_CACHE["payload"] = None
+        _APK_RELEASE_CACHE["at"] = time.monotonic()
+        return None
+    assets = release.get("assets") or []
+    apk = next(
+        (asset for asset in assets if str(asset.get("name", "")).lower().endswith(".apk")),
+        None,
+    )
+    tag = str(release.get("tag_name", "")).strip()
+    payload = {
+        "version": tag.lstrip("vV"),
+        "tag": tag,
+        "publishedAt": release.get("published_at"),
+        "notes": (release.get("body") or "").strip(),
+        "sizeBytes": (apk or {}).get("size"),
+        "downloadUrl": APK_DOWNLOAD_URL
+        or (
+            f"https://github.com/{GITHUB_REPO}/releases/latest/download/{apk['name']}"
+            if apk
+            else ""
+        ),
+    }
+    _APK_RELEASE_CACHE["payload"] = payload
+    _APK_RELEASE_CACHE["at"] = time.monotonic()
+    return payload
 
 
 @app.get("/")
@@ -480,6 +556,40 @@ def download_apk():
     if not APK_DOWNLOAD_URL.startswith(("https://", "http://")):
         raise HTTPException(status_code=503, detail="APK download is not configured.")
     return RedirectResponse(APK_DOWNLOAD_URL, status_code=302)
+
+
+@app.get("/api/app/version")
+def app_version(currentVersion: Optional[str] = None):
+    """Tell an installed app whether a newer APK has been published."""
+    release = latest_apk_release() or {}
+    latest_version = (release.get("version") or APP_LATEST_VERSION).strip()
+    latest_parsed = parse_version(latest_version) if latest_version else None
+    if latest_parsed is None:
+        raise HTTPException(status_code=503, detail="Latest app version is unavailable.")
+    # A '+' in build metadata (for example `1.1.0+2`) is commonly sent
+    # unencoded, which arrives as a space, so normalize before parsing.
+    requested = (currentVersion or "").strip().replace(" ", "+")[:32]
+    current_parsed = parse_version(requested) if requested else None
+    minimum_parsed = parse_version(APP_MINIMUM_VERSION) if APP_MINIMUM_VERSION else None
+    return {
+        "ok": True,
+        "latestVersion": latest_version,
+        "latestTag": release.get("tag") or f"v{latest_version}",
+        "publishedAt": release.get("publishedAt"),
+        "notes": release.get("notes") or "",
+        "sizeBytes": release.get("sizeBytes"),
+        "downloadUrl": release.get("downloadUrl") or APK_DOWNLOAD_URL,
+        "currentVersion": requested or None,
+        "updateAvailable": (
+            current_parsed is not None and current_parsed < latest_parsed
+        ),
+        "minimumVersion": APP_MINIMUM_VERSION or None,
+        "updateRequired": (
+            current_parsed is not None
+            and minimum_parsed is not None
+            and current_parsed < minimum_parsed
+        ),
+    }
 
 
 @app.get("/admin")

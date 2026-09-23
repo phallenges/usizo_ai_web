@@ -53,6 +53,85 @@ def test_download_returns_503_when_unconfigured(client, monkeypatch):
     assert r.status_code == 503
 
 
+# ── App version / update checks ─────────────────────────────────────
+
+
+def test_parse_version_handles_tags_and_builds():
+    assert main_module.parse_version("v1.1.0") == (1, 1, 0)
+    assert main_module.parse_version("1.0.0+2") == (1, 0, 0)
+    assert main_module.parse_version("1.2") == (1, 2, 0)
+    assert main_module.parse_version("1.10.0") > main_module.parse_version("1.9.0")
+    assert main_module.parse_version("not-a-version") is None
+
+
+def _release_stub():
+    return {
+        "version": "1.1.0",
+        "tag": "v1.1.0",
+        "publishedAt": "2026-09-22T05:47:47Z",
+        "notes": "Latest release",
+        "sizeBytes": 129306624,
+        "downloadUrl": "https://example.test/UsizoAI.apk",
+    }
+
+
+def test_app_version_reports_available_update(client, monkeypatch):
+    monkeypatch.setattr(main_module, "latest_apk_release", _release_stub)
+    r = client.get("/api/app/version?currentVersion=1.0.0")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["latestVersion"] == "1.1.0"
+    assert body["latestTag"] == "v1.1.0"
+    assert body["updateAvailable"] is True
+    assert body["updateRequired"] is False
+    assert body["downloadUrl"] == "https://example.test/UsizoAI.apk"
+    assert body["sizeBytes"] == 129306624
+
+
+def test_app_version_is_up_to_date(client, monkeypatch):
+    monkeypatch.setattr(main_module, "latest_apk_release", _release_stub)
+    for version in ("1.1.0", "1.1.0+2", "1.1.0%2B2", "1.1.0 2"):
+        body = client.get(f"/api/app/version?currentVersion={version}").json()
+        assert body["updateAvailable"] is False, version
+        assert body["currentVersion"] is not None
+
+
+def test_app_version_available_without_current_version(client, monkeypatch):
+    monkeypatch.setattr(main_module, "latest_apk_release", _release_stub)
+    body = client.get("/api/app/version").json()
+    assert body["currentVersion"] is None
+    assert body["updateAvailable"] is False
+
+
+def test_app_version_requires_update_below_minimum(client, monkeypatch):
+    monkeypatch.setattr(
+        main_module,
+        "latest_apk_release",
+        lambda: {"version": "1.2.0", "tag": "v1.2.0"},
+    )
+    monkeypatch.setattr(main_module, "APP_MINIMUM_VERSION", "1.1.0")
+    body = client.get("/api/app/version?currentVersion=1.0.0").json()
+    assert body["updateAvailable"] is True
+    assert body["updateRequired"] is True
+    assert body["minimumVersion"] == "1.1.0"
+
+
+def test_app_version_unavailable_without_release(client, monkeypatch):
+    monkeypatch.setattr(main_module, "latest_apk_release", lambda: None)
+    monkeypatch.setattr(main_module, "APP_LATEST_VERSION", "")
+    r = client.get("/api/app/version")
+    assert r.status_code == 503
+
+
+def test_app_version_uses_env_fallback(client, monkeypatch):
+    monkeypatch.setattr(main_module, "latest_apk_release", lambda: None)
+    monkeypatch.setattr(main_module, "APP_LATEST_VERSION", "2.0.0")
+    body = client.get("/api/app/version?currentVersion=1.1.0").json()
+    assert body["latestVersion"] == "2.0.0"
+    assert body["latestTag"] == "v2.0.0"
+    assert body["updateAvailable"] is True
+
+
 def test_account_register_and_login(client):
     response = client.post(
         "/api/auth/register",

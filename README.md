@@ -100,6 +100,7 @@ GET /vendor/      Supplier portal
 GET /health       Health check
 GET /api/         API status
 GET /download     Redirect to the current Android APK
+GET /api/app/version  Latest APK version and update status
 GET /favicon.png  Website favicon
 ```
 
