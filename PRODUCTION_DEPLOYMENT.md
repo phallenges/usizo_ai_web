@@ -112,6 +112,31 @@ Publish the release as a normal release, not a pre-release, because `/download`
 serves the newest non-draft, non-pre-release release. Delete the release it
 replaces so an older tag cannot become `latest` again.
 
+Increment the version in `pubspec.yaml` for every release, for example
+`1.2.0+3`. The build number after `+` is the Android `versionCode`; Android
+refuses to install an update whose `versionCode` is not higher than the
+installed build. The `versionName` before `+` is what the app reports to
+`/api/app/version`.
+
+## In-app updates
+
+The app checks `/api/app/version` after startup and, when a newer build is
+published, offers a one-tap update: it downloads the APK in the background with
+progress and then hands it to the Android package installer. The person still
+confirms the install, because Android never installs a sideloaded APK silently.
+
+What this requires:
+
+- `REQUEST_INSTALL_PACKAGES` in `AndroidManifest.xml`, plus the
+  `${applicationId}.updates` `FileProvider` declared for the updater.
+- The downloads are staged in the app cache under `updates/`.
+- The release keystore must be the same one used for the installed build,
+  otherwise Android rejects the update. Back up `android/app/*.jks` and
+  `android/key.properties`; they are intentionally not in Git.
+
+If the person has not allowed installs from this app yet, the app opens the
+"install unknown apps" screen and asks them to tap **Update now** again.
+
 ## Release checklist
 
 - Backend tests pass.
@@ -127,4 +152,7 @@ replaces so an older tag cannot become `latest` again.
 - `/download` returns HTTP 302 to the intended release.
 - `/api/app/version` reports the new version, or the `atom`/`static` fallback.
 - `APP_LATEST_VERSION` in `backend/app/main.py` matches the newest release.
+- `pubspec.yaml` version and build number are higher than the previous release.
+- The in-app update prompt downloads and installs the new build on a real device.
+- The release keystore used for the build matches the installed build's key.
 - Privacy, health-safety, retention, and support procedures are reviewed.

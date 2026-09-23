@@ -43,6 +43,31 @@ class BackendApi {
 
   Future<bool> hasAccount() async => (await _accountToken()) != null;
 
+  // ── App updates ──────────────────────────────────────────────────
+
+  /// Ask the backend which Android release is published for [currentVersion].
+  ///
+  /// Returns null when the API is unconfigured, unreachable, or from an older
+  /// backend that has no version endpoint.
+  Future<Map<String, dynamic>?> fetchAppVersion({
+    required String currentVersion,
+  }) async {
+    if (!isConfigured) return null;
+    try {
+      final uri = Uri.parse('$_baseUrl/api/app/version').replace(
+        queryParameters: {'currentVersion': currentVersion},
+      );
+      final r = await _request(
+        () => _client.get(uri),
+        timeout: const Duration(seconds: 8),
+      );
+      if (r.statusCode != 200) return null;
+      return jsonDecode(r.body) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> registerAccount({
     required String name,
     required String password,
@@ -724,7 +749,7 @@ class BackendApi {
       final r = await _request(
         () => _client.delete(
           Uri.parse('$_baseUrl/api/vendors/me/products/$productId'),
-          headers: {'Authorization': '******'},
+          headers: {'Authorization': 'Bearer $token'},
         ),
       );
       return r.statusCode == 200;

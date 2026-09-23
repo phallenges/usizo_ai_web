@@ -35,6 +35,7 @@ health professional.
 lib/                         Flutter application
 lib/screens/                 Customer screens and flows
 lib/services/                API, catalog, payment, and matching services
+lib/services/app_updater.dart In-app APK update download and install bridge
 assets/remedies.json         Bundled remedy catalog
 assets/models/               ONNX embedding model
 backend/app/                 FastAPI application and database layer
@@ -79,6 +80,15 @@ production uses PostgreSQL.
 ```powershell
 backend\.venv\Scripts\python.exe -m pytest -q backend\tests
 ```
+
+## Android updates
+
+The app asks `/api/app/version` after launch. When a newer release exists it
+offers a one-tap update that downloads the APK in the background, shows
+progress, and opens the Android installer. Android still requires the person to
+confirm the install; see
+[PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md) for the release,
+`versionCode`, and signing-key rules.
 
 ## Deployment
 

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../l10n/localized.dart';
 import '../models/user_profile.dart';
 import '../services/app_store.dart';
+import '../services/app_updater.dart';
 import '../services/payment_service.dart';
+import '../widgets/update_check_tile.dart';
 import 'activate_screen.dart';
 import 'payment_details_screen.dart';
 import 'remedy_submission_screen.dart';
@@ -11,12 +13,14 @@ import 'remedy_submission_screen.dart';
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     required this.store,
+    this.updater,
     this.openUpgrade = false,
     this.onUpgradeOpened,
     super.key,
   });
 
   final AppStore store;
+  final AppUpdater? updater;
   final bool openUpgrade;
   final VoidCallback? onUpgradeOpened;
 
@@ -370,6 +374,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
           ),
           const SizedBox(height: 20),
+          UpdateCheckTile(updater: widget.updater),
+          const SizedBox(height: 12),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),

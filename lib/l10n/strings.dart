@@ -681,6 +681,87 @@ const Map<String, Map<String, String>> appStrings = {
     'sn': 'NaNdebele',
     'nd': 'isiNdebele',
   },
+  // ── Updates ───────────────────────────────────────────────────────
+  'update.title': {
+    'en': 'Update UsizoAI',
+    'sn': 'Vandudza UsizoAI',
+    'nd': 'Buyekeza i-UsizoAI',
+  },
+  'update.latestVersion': {
+    'en': 'New version',
+    'sn': 'Shanduro itsva',
+    'nd': 'Inguqulo entsha',
+  },
+  'update.whatsNew': {
+    'en': "What's new",
+    'sn': 'Zvitsva',
+    'nd': 'Okusha',
+  },
+  'update.required': {
+    'en': 'This update is required to keep using the app.',
+    'sn': 'Ukuvandudza uku kunodiwa kuti urambe uchishandisa app.',
+    'nd': 'Lokhu kubuyekeza kuyadingeka ukuze uqhubeke usebenzisa i-app.',
+  },
+  'update.updateNow': {
+    'en': 'Update now',
+    'sn': 'Vandudza zvino',
+    'nd': 'Buyekeza manje',
+  },
+  'update.later': {
+    'en': 'Later',
+    'sn': 'Gare gare',
+    'nd': 'Kamuva',
+  },
+  'update.downloading': {
+    'en': 'Downloading',
+    'sn': 'Kudhawunirodha',
+    'nd': 'Kulanda',
+  },
+  'update.installPrompt': {
+    'en': 'Follow the Android prompt to finish installing.',
+    'sn': 'Tevedzera kurairwa kweAndroid kuti upedze kuisa.',
+    'nd': 'Landela umyalelo we-Android ukuze uqedele ukufaka.',
+  },
+  'update.permissionNeeded': {
+    'en': 'Allow UsizoAI to install apps, then tap Update now again.',
+    'sn': 'Bvumira UsizoAI kuisa maapp, wobva wadzvanya Vandudza zvino zvakare.',
+    'nd': 'Vumela i-UsizoAI ukufaka ama-app, bese ucindezela Buyekeza manje futhi.',
+  },
+  'update.downloadFailed': {
+    'en': 'The download failed. Check your connection and try again.',
+    'sn': 'Kudhawunirodha kwakundikana. Tarisa internet wobva waedza zvakare.',
+    'nd': 'Ukulanda kwehlulekile. Hlola intanethi bese uzama futhi.',
+  },
+  'update.unavailable': {
+    'en': 'Automatic update is unavailable. Download the new version from the UsizoAI website.',
+    'sn': 'Kuvandudza otomatiki hakusi kuwanikwa. Dhawunirodha shanduro itsva pawebhusaiti yeUsizoAI.',
+    'nd': 'Ukubuyekeza okuzenzakalelayo akukho. Landa inguqulo entsha kuwebhusayithi ye-UsizoAI.',
+  },
+  'update.installFailed': {
+    'en': 'Android could not start the installer.',
+    'sn': 'Android haina kukwanisa kutanga installer.',
+    'nd': 'I-Android ayikwazanga ukuqala isifaki.',
+  },
+  'update.upToDate': {
+    'en': 'UsizoAI is up to date.',
+    'sn': 'UsizoAI yakaenzana neshanduro itsva.',
+    'nd': 'I-UsizoAI isesikhathini.',
+  },
+  'update.checkForUpdates': {
+    'en': 'Check for updates',
+    'sn': 'Tarisa kuvandudzwa',
+    'nd': 'Hlola ukubuyekezwa',
+  },
+  'update.checkFailed': {
+    'en': 'Could not check for updates right now.',
+    'sn': 'Hazvina kukwanisa kutarisa kuvandudzwa izvozvi.',
+    'nd': 'Akukwazekanga ukuhlola ukubuyekezwa manje.',
+  },
+  'update.installedVersion': {
+    'en': 'Installed version',
+    'sn': 'Shanduro yakaiswa',
+    'nd': 'Inguqulo efakiwe',
+  },
 };
 
 /// Simple helper to look up a string by key and language code.
