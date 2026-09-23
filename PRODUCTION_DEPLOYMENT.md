@@ -125,4 +125,6 @@ replaces so an older tag cannot become `latest` again.
 - The GitHub Release asset is named `UsizoAI.apk`.
 - The new release is published as a normal release and the superseded one is deleted.
 - `/download` returns HTTP 302 to the intended release.
+- `/api/app/version` reports the new version, or the `atom`/`static` fallback.
+- `APP_LATEST_VERSION` in `backend/app/main.py` matches the newest release.
 - Privacy, health-safety, retention, and support procedures are reviewed.

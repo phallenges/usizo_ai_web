@@ -66,6 +66,7 @@ def test_parse_version_handles_tags_and_builds():
 
 def _release_stub():
     return {
+        "source": "github",
         "version": "1.1.0",
         "tag": "v1.1.0",
         "publishedAt": "2026-09-22T05:47:47Z",
@@ -82,6 +83,7 @@ def test_app_version_reports_available_update(client, monkeypatch):
     body = r.json()
     assert body["latestVersion"] == "1.1.0"
     assert body["latestTag"] == "v1.1.0"
+    assert body["source"] == "github"
     assert body["updateAvailable"] is True
     assert body["updateRequired"] is False
     assert body["downloadUrl"] == "https://example.test/UsizoAI.apk"
@@ -129,7 +131,57 @@ def test_app_version_uses_env_fallback(client, monkeypatch):
     body = client.get("/api/app/version?currentVersion=1.1.0").json()
     assert body["latestVersion"] == "2.0.0"
     assert body["latestTag"] == "v2.0.0"
+    assert body["source"] == "static"
     assert body["updateAvailable"] is True
+
+
+def test_latest_release_falls_back_to_feed(client, monkeypatch):
+    """A rate-limited GitHub API must not break version checks."""
+    monkeypatch.setattr(main_module, "_APK_RELEASE_CACHE", {"at": 0.0, "payload": None})
+
+    def _boom():
+        raise RuntimeError("API rate limit exceeded")
+
+    monkeypatch.setattr(main_module, "_release_from_api", _boom)
+    monkeypatch.setattr(
+        main_module,
+        "_release_from_atom",
+        lambda: {
+            "source": "atom",
+            "version": "1.1.0",
+            "tag": "v1.1.0",
+            "publishedAt": "2026-09-22T05:47:47Z",
+            "notes": "",
+            "sizeBytes": None,
+            "downloadUrl": "https://example.test/UsizoAI.apk",
+        },
+    )
+    release = main_module.latest_apk_release()
+    assert release["source"] == "atom"
+    assert release["version"] == "1.1.0"
+    body = client.get("/api/app/version?currentVersion=1.0.0").json()
+    assert body["source"] == "atom"
+    assert body["updateAvailable"] is True
+
+
+def test_latest_release_returns_none_when_every_source_fails(client, monkeypatch):
+    monkeypatch.setattr(main_module, "_APK_RELEASE_CACHE", {"at": 0.0, "payload": None})
+
+    def _boom():
+        raise RuntimeError("network unavailable")
+
+    monkeypatch.setattr(main_module, "_release_from_api", _boom)
+    monkeypatch.setattr(main_module, "_release_from_atom", _boom)
+    assert main_module.latest_apk_release() is None
+    monkeypatch.setattr(main_module, "APP_LATEST_VERSION", "")
+    assert client.get("/api/app/version").status_code == 503
+
+
+def test_release_tag_pattern_ignores_pre_releases():
+    assert main_module.RELEASE_TAG_PATTERN.fullmatch("v1.1.0")
+    assert main_module.RELEASE_TAG_PATTERN.fullmatch("1.2")
+    assert not main_module.RELEASE_TAG_PATTERN.fullmatch("v1.2.0-rc1")
+    assert not main_module.RELEASE_TAG_PATTERN.fullmatch("latest")
 
 
 def test_account_register_and_login(client):

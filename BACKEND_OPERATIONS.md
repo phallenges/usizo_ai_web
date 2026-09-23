@@ -71,6 +71,7 @@ GET /api/app/version?currentVersion=1.0.0
   "ok": true,
   "latestVersion": "1.1.0",
   "latestTag": "v1.1.0",
+  "source": "github",
   "downloadUrl": "https://github.com/phallenges/usizo_ai_web/releases/latest/download/UsizoAI.apk",
   "currentVersion": "1.0.0",
   "updateAvailable": true,
@@ -79,13 +80,24 @@ GET /api/app/version?currentVersion=1.0.0
 }
 ```
 
-The endpoint reads the newest release from the GitHub API and caches it for
-`APP_VERSION_CACHE_SECONDS` (default `600`) so repeated checks cannot exhaust
-the unauthenticated rate limit. Optional Render variables:
+The endpoint resolves the newest release in three tiers and reports which one
+answered in `source`:
+
+1. `github` - the GitHub API, which excludes drafts and pre-releases.
+2. `atom` - the public release feed, used when the API rate limit is exhausted.
+   The unauthenticated GitHub limit is 60 requests per hour per IP and Render
+   shares its egress IP, so this fallback is expected in production.
+3. `static` - `APP_LATEST_VERSION` plus the `/download` URL, used only when both
+   GitHub endpoints are unreachable.
+
+Successful lookups are cached for `APP_VERSION_CACHE_SECONDS` (default `600`),
+and failures for 60 seconds, so repeated checks stay cheap. When the API is
+rate-limited, setting `GITHUB_TOKEN` on Render restores the richest response
+(notes and APK size). Optional Render variables:
 
 ```text
 GITHUB_TOKEN=<token that raises the GitHub API rate limit>
-APP_LATEST_VERSION=<version to report when GitHub is unreachable>
+APP_LATEST_VERSION=<static fallback; keep level with the newest release>
 APP_MINIMUM_VERSION=<oldest supported version; older apps get updateRequired>
 APP_VERSION_CACHE_SECONDS=600
 ```

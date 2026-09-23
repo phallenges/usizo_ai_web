@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+from xml.etree import ElementTree as ET
 
 import bcrypt
 import httpx
@@ -457,8 +458,13 @@ GITHUB_RELEASES_API = os.getenv(
     f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
 ).strip()
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
-# Optional overrides so version checks still work if GitHub is unreachable.
-APP_LATEST_VERSION = os.getenv("APP_LATEST_VERSION", "").strip()
+GITHUB_RELEASES_ATOM = os.getenv(
+    "GITHUB_RELEASES_ATOM",
+    f"https://github.com/{GITHUB_REPO}/releases.atom",
+).strip()
+# Last resort when GitHub cannot be reached at all. Keep in sync with the
+# newest published release; APP_LATEST_VERSION overrides it in Render.
+APP_LATEST_VERSION = os.getenv("APP_LATEST_VERSION", "1.1.0").strip()
 APP_MINIMUM_VERSION = os.getenv("APP_MINIMUM_VERSION", "").strip()
 APP_VERSION_CACHE_SECONDS = int(os.getenv("APP_VERSION_CACHE_SECONDS", "600"))
 APP_VERSION_FAILURE_CACHE_SECONDS = 60
@@ -471,6 +477,9 @@ APK_DOWNLOAD_URL = os.getenv(
 _APK_RELEASE_CACHE: dict[str, object] = {"at": 0.0, "payload": None}
 
 
+RELEASE_TAG_PATTERN = re.compile(r"v?\d+(?:\.\d+){0,2}")
+
+
 def parse_version(value: str) -> Optional[tuple[int, int, int]]:
     """Parse `1.1.0`, `v1.1.0+2`, or `1.1` into a comparable tuple."""
     match = re.fullmatch(r"v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\+\d+)?", value.strip())
@@ -479,41 +488,22 @@ def parse_version(value: str) -> Optional[tuple[int, int, int]]:
     return tuple(int(part or 0) for part in match.groups())
 
 
-def latest_apk_release() -> Optional[dict]:
-    """Return the newest published APK release, or None when it is unreadable.
-
-    The result is cached briefly so repeated version checks cannot exhaust the
-    unauthenticated GitHub API rate limit.
-    """
-    payload = _APK_RELEASE_CACHE["payload"]
-    cached_at = float(_APK_RELEASE_CACHE["at"])
-    if cached_at:
-        ttl = (
-            APP_VERSION_CACHE_SECONDS
-            if payload is not None
-            else APP_VERSION_FAILURE_CACHE_SECONDS
-        )
-        if time.monotonic() - cached_at < ttl:
-            return payload  # type: ignore[return-value]
+def _release_from_api() -> dict:
+    """Read the newest release from the GitHub API (excludes drafts and pre-releases)."""
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "usizoai-api"}
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
-    try:
-        response = httpx.get(GITHUB_RELEASES_API, headers=headers, timeout=8.0)
-        response.raise_for_status()
-        release = response.json()
-    except Exception as exc:  # noqa: BLE001 - outages and bad payloads are expected
-        logger.warning("GitHub release lookup failed: %s", exc)
-        _APK_RELEASE_CACHE["payload"] = None
-        _APK_RELEASE_CACHE["at"] = time.monotonic()
-        return None
+    response = httpx.get(GITHUB_RELEASES_API, headers=headers, timeout=8.0)
+    response.raise_for_status()
+    release = response.json()
     assets = release.get("assets") or []
     apk = next(
         (asset for asset in assets if str(asset.get("name", "")).lower().endswith(".apk")),
         None,
     )
     tag = str(release.get("tag_name", "")).strip()
-    payload = {
+    return {
+        "source": "github",
         "version": tag.lstrip("vV"),
         "tag": tag,
         "publishedAt": release.get("published_at"),
@@ -526,9 +516,58 @@ def latest_apk_release() -> Optional[dict]:
             else ""
         ),
     }
-    _APK_RELEASE_CACHE["payload"] = payload
+
+
+def _release_from_atom() -> dict:
+    """Read the newest release from the feed, which has no API rate limit."""
+    response = httpx.get(GITHUB_RELEASES_ATOM, timeout=8.0)
+    response.raise_for_status()
+    namespace = {"atom": "http://www.w3.org/2005/Atom"}
+    root = ET.fromstring(response.text)
+    for entry in root.findall("atom:entry", namespace):
+        identifier = entry.findtext("atom:id", default="", namespaces=namespace) or ""
+        tag = identifier.rsplit("/", 1)[-1].strip()
+        if not RELEASE_TAG_PATTERN.fullmatch(tag):
+            continue
+        return {
+            "source": "atom",
+            "version": tag.lstrip("vV"),
+            "tag": tag,
+            "publishedAt": entry.findtext("atom:updated", default=None, namespaces=namespace),
+            "notes": "",
+            "sizeBytes": None,
+            "downloadUrl": APK_DOWNLOAD_URL,
+        }
+    raise ValueError("No published release found in the release feed.")
+
+
+def latest_apk_release() -> Optional[dict]:
+    """Return the newest published APK release, or None when it is unreadable.
+
+    The GitHub API is authoritative, but its unauthenticated rate limit is
+    shared with other hosts, so the release feed is used as a fallback. Results
+    are cached so repeated version checks stay cheap.
+    """
+    payload = _APK_RELEASE_CACHE["payload"]
+    cached_at = float(_APK_RELEASE_CACHE["at"])
+    if cached_at:
+        age = time.monotonic() - cached_at
+        if payload is not None and age < APP_VERSION_CACHE_SECONDS:
+            return payload  # type: ignore[return-value]
+        if payload is None and age < APP_VERSION_FAILURE_CACHE_SECONDS:
+            return None
+    for fetch in (_release_from_api, _release_from_atom):
+        try:
+            payload = fetch()
+        except Exception as exc:  # noqa: BLE001 - outages and bad payloads are expected
+            logger.warning("Latest release lookup via %s failed: %s", fetch.__name__, exc)
+            continue
+        _APK_RELEASE_CACHE["payload"] = payload
+        _APK_RELEASE_CACHE["at"] = time.monotonic()
+        return payload
+    _APK_RELEASE_CACHE["payload"] = None
     _APK_RELEASE_CACHE["at"] = time.monotonic()
-    return payload
+    return None
 
 
 @app.get("/")
@@ -575,6 +614,7 @@ def app_version(currentVersion: Optional[str] = None):
         "ok": True,
         "latestVersion": latest_version,
         "latestTag": release.get("tag") or f"v{latest_version}",
+        "source": release.get("source") or "static",
         "publishedAt": release.get("publishedAt"),
         "notes": release.get("notes") or "",
         "sizeBytes": release.get("sizeBytes"),
