@@ -519,7 +519,7 @@ GITHUB_RELEASES_ATOM = os.getenv(
 ).strip()
 # Last resort when GitHub cannot be reached at all. Keep in sync with the
 # newest published release; APP_LATEST_VERSION overrides it in Render.
-APP_LATEST_VERSION = os.getenv("APP_LATEST_VERSION", "1.2.0").strip()
+APP_LATEST_VERSION = os.getenv("APP_LATEST_VERSION", "1.2.1").strip()
 APP_MINIMUM_VERSION = os.getenv("APP_MINIMUM_VERSION", "").strip()
 APP_VERSION_CACHE_SECONDS = int(os.getenv("APP_VERSION_CACHE_SECONDS", "600"))
 APP_VERSION_FAILURE_CACHE_SECONDS = 60

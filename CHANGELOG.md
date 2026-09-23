@@ -4,7 +4,7 @@ All notable changes to UsizoAI are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.2.1] - 2026-09-23
 
 ### Security
 
@@ -24,6 +24,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fixed four client methods that sent a literal placeholder instead of the
   account/vendor `Bearer` token, silently failing authentication.
 - Removed leftover Flutterwave test keys from the repository working tree.
+
+### Client
+
+- `backend_api.dart` stores and refreshes the device token, sends it on every
+  device-scoped call, resets stale identities on 401/403, and single-flights
+  registration so old installs recover automatically after updating.
 
 ## [1.1.1] - 2026-09-22
 
