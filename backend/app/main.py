@@ -1,3 +1,4 @@
+import base64
 import json
 from email.message import EmailMessage
 import hmac
@@ -63,6 +64,24 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
 SMTP_FROM = os.getenv("SMTP_FROM", "").strip()
+# Outbound email transports, tried in this order unless EMAIL_TRANSPORT pins one.
+# Render's free instance type blocks outbound traffic to SMTP ports 25, 465, and
+# 587, so HTTPS providers come first and SMTP is kept for paid instances or
+# self-hosting.
+EMAIL_TRANSPORTS = ("mailjet", "brevo", "sendgrid", "smtp")
+EMAIL_PROVIDER_URLS = {
+    "mailjet": "https://api.mailjet.com/v3.1/send",
+    "brevo": "https://api.brevo.com/v3/smtp/email",
+    "sendgrid": "https://api.sendgrid.com/v3/mail/send",
+}
+MAILJET_API_KEY = os.getenv("MAILJET_API_KEY", "").strip()
+MAILJET_SECRET_KEY = os.getenv("MAILJET_SECRET_KEY", "").strip()
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "").strip()
+EMAIL_TRANSPORT = os.getenv("EMAIL_TRANSPORT", "").strip().lower()
+EMAIL_FROM = os.getenv("EMAIL_FROM", "").strip() or SMTP_FROM
+EMAIL_TIMEOUT_SECONDS = float(os.getenv("EMAIL_TIMEOUT_SECONDS", "15"))
+EMAIL_PATTERN = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -1384,15 +1403,228 @@ def device_activate(device_id: str, body: ActivateBody, _auth: str = Depends(req
     return {"isPremium": True, "updatedAt": now}
 
 
-def send_plus_token_email(recipient: str, token: str, payment_reference: str) -> None:
-    if not SMTP_HOST or not SMTP_USERNAME or not SMTP_PASSWORD or not SMTP_FROM:
-        raise HTTPException(status_code=503, detail="Email delivery is not configured.")
+class EmailDeliveryFailed(Exception):
+    """Raised when a transport could not hand a message to the provider."""
+
+
+def _smtp_configured() -> bool:
+    return bool(SMTP_HOST and SMTP_USERNAME and SMTP_PASSWORD and SMTP_FROM)
+
+
+def _configured_transports() -> list[str]:
+    """Transports that are fully configured, in the order they are tried."""
+    configured = []
+    if MAILJET_API_KEY and MAILJET_SECRET_KEY:
+        configured.append("mailjet")
+    if BREVO_API_KEY:
+        configured.append("brevo")
+    if SENDGRID_API_KEY:
+        configured.append("sendgrid")
+    if _smtp_configured():
+        configured.append("smtp")
+    return configured
+
+
+def email_transport() -> str:
+    """Which transport outbound email uses, or ``none``.
+
+    EMAIL_TRANSPORT pins one explicitly so a stale key for a provider whose
+    account is unusable (for example an unvalidated one) cannot silently take
+    precedence. A pin that is unknown or not fully configured reports ``none``
+    rather than quietly using a different provider, so the operations
+    dashboard shows the real problem instead of a second one.
+    """
+    if EMAIL_TRANSPORT:
+        if EMAIL_TRANSPORT not in EMAIL_TRANSPORTS:
+            logger.warning(
+                "Ignoring EMAIL_TRANSPORT=%r; expected one of %s",
+                EMAIL_TRANSPORT,
+                ", ".join(EMAIL_TRANSPORTS),
+            )
+        else:
+            return EMAIL_TRANSPORT if EMAIL_TRANSPORT in _configured_transports() else "none"
+    configured = _configured_transports()
+    return configured[0] if configured else "none"
+
+
+def _sender_address() -> tuple[str, str]:
+    """Split EMAIL_FROM such as ``UsizoAI <no-reply@example.com>``."""
+    match = re.fullmatch(r"\s*(.*?)\s*<([^<>]+)>\s*", EMAIL_FROM)
+    if match:
+        return match.group(2).strip(), match.group(1).strip().strip('"')
+    return EMAIL_FROM.strip(), ""
+
+
+def _post_json(url: str, headers: dict, payload: dict) -> httpx.Response:
+    """POST JSON to an email provider.
+
+    Kept as its own function so tests can replace the network call.
+    """
+    return httpx.post(url, headers=headers, json=payload, timeout=EMAIL_TIMEOUT_SECONDS)
+
+
+def _response_body(response: httpx.Response) -> dict:
+    """Decode a provider's JSON body, or an empty mapping when there is none."""
+    try:
+        body = response.json()
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+def _message_level_failure(response: httpx.Response) -> str:
+    """Return the reason when a 2xx response still reports a failed message.
+
+    Mailjet answers HTTP 200 with a per-message ``Status`` of ``error``, so the
+    status code on its own would hide a lost activation token.
+    """
+    messages = _response_body(response).get("Messages")
+    if not isinstance(messages, list):
+        return ""
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        status = str(message.get("Status", "")).strip().lower()
+        if status in ("", "success"):
+            continue
+        errors = message.get("Errors")
+        if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+            detail = str(
+                errors[0].get("ErrorMessage") or errors[0].get("message") or ""
+            ).strip()
+            if detail:
+                return detail
+        return f"status {message.get('Status')}"
+    return ""
+
+
+def _provider_error(response: httpx.Response) -> str:
+    """Explain a rejected send using the provider's own error fields.
+
+    Brevo reports ``message``, SendGrid reports ``errors[].message`` and Mailjet
+    reports either a top-level ``ErrorMessage`` or
+    ``Messages[].Errors[].ErrorMessage``, so all of them are read.
+    """
+    body = _response_body(response)
+    detail = str(
+        body.get("message")
+        or body.get("error")
+        or body.get("ErrorMessage")
+        or body.get("ErrorInfo")
+        or ""
+    ).strip()
+    errors = body.get("errors")
+    if not detail and isinstance(errors, list) and errors and isinstance(errors[0], dict):
+        detail = str(errors[0].get("message") or "").strip()
+    if not detail:
+        detail = _message_level_failure(response)
+    return f"HTTP {response.status_code}" + (f": {detail}" if detail else "")
+
+
+def _send_via_http_provider(provider: str, recipient: str, subject: str, text: str) -> None:
+    if not EMAIL_FROM:
+        raise EmailDeliveryFailed("EMAIL_FROM must be set for HTTPS email providers.")
+    address, name = _sender_address()
+    if provider == "mailjet":
+        payload = {
+            "Messages": [
+                {
+                    "From": {"Email": address, "Name": name or "UsizoAI"},
+                    "To": [{"Email": recipient}],
+                    "Subject": subject,
+                    "TextPart": text,
+                }
+            ]
+        }
+        # Mailjet authenticates with HTTP Basic: the API key is the username
+        # and the secret key is the password.
+        credentials = base64.b64encode(
+            f"{MAILJET_API_KEY}:{MAILJET_SECRET_KEY}".encode("utf-8")
+        ).decode("ascii")
+        headers = {"Authorization": f"Basic {credentials}", "accept": "application/json"}
+    elif provider == "brevo":
+        payload = {
+            "sender": {"email": address, "name": name or "UsizoAI"},
+            "to": [{"email": recipient}],
+            "subject": subject,
+            "textContent": text,
+        }
+        headers = {"api-key": BREVO_API_KEY, "accept": "application/json"}
+    elif provider == "sendgrid":
+        payload = {
+            "personalizations": [{"to": [{"email": recipient}]}],
+            "from": {"email": address, "name": name or "UsizoAI"},
+            "subject": subject,
+            "content": [{"type": "text/plain", "value": text}],
+        }
+        headers = {"Authorization": f"Bearer {SENDGRID_API_KEY}"}
+    else:
+        raise EmailDeliveryFailed(f"Unknown email transport: {provider}.")
+    try:
+        response = _post_json(EMAIL_PROVIDER_URLS[provider], headers, payload)
+    except httpx.HTTPError as exc:
+        raise EmailDeliveryFailed(
+            f"{provider} could not be reached ({exc.__class__.__name__})."
+        ) from exc
+    if response.status_code >= 300:
+        raise EmailDeliveryFailed(
+            f"{provider} rejected the message ({_provider_error(response)})."
+        )
+    failure = _message_level_failure(response)
+    if failure:
+        raise EmailDeliveryFailed(f"{provider} reported a send failure ({failure}).")
+
+
+def _send_via_smtp(recipient: str, subject: str, text: str) -> None:
     message = EmailMessage()
-    message["Subject"] = "Your UsizoAI Plus activation token"
+    message["Subject"] = subject
     message["From"] = SMTP_FROM
     message["To"] = recipient
-    message.set_content(
-        f"""Your UsizoAI Plus payment was verified.
+    message.set_content(text)
+    if SMTP_PORT == 465:
+        with smtplib.SMTP_SSL(
+            SMTP_HOST, SMTP_PORT, timeout=EMAIL_TIMEOUT_SECONDS, context=ssl.create_default_context()
+        ) as server:
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(message)
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=EMAIL_TIMEOUT_SECONDS) as server:
+            server.starttls(context=ssl.create_default_context())
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(message)
+
+
+def send_email(recipient: str, subject: str, text: str) -> str:
+    """Deliver one message and return the transport that carried it.
+
+    Failures raise HTTPException(503) with the underlying reason so the
+    operations dashboard can show why a send failed instead of a dead end.
+    """
+    transport = email_transport()
+    if transport == "none":
+        raise HTTPException(status_code=503, detail="Email delivery is not configured.")
+    try:
+        if transport == "smtp":
+            _send_via_smtp(recipient, subject, text)
+        else:
+            _send_via_http_provider(transport, recipient, subject, text)
+    except EmailDeliveryFailed as exc:
+        logger.exception("Outbound email delivery failed via %s", transport)
+        raise HTTPException(
+            status_code=503, detail=f"Token email could not be sent. {exc}"
+        ) from exc
+    except (OSError, smtplib.SMTPException) as exc:
+        logger.exception("Outbound email delivery failed via %s", transport)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Token email could not be sent. SMTP error: {exc}",
+        ) from exc
+    return transport
+
+
+def send_plus_token_email(recipient: str, token: str, payment_reference: str) -> str:
+    """Email a single-use Plus activation token and report the transport used."""
+    text = f"""Your UsizoAI Plus payment was verified.
 
 Your one-time activation token is:
 
@@ -1404,22 +1636,7 @@ Payment reference: {payment_reference}
 
 UsizoAI provides educational health guidance and does not replace a qualified health professional.
 """
-    )
-    try:
-        if SMTP_PORT == 465:
-            with smtplib.SMTP_SSL(
-                SMTP_HOST, SMTP_PORT, timeout=15, context=ssl.create_default_context()
-            ) as server:
-                server.login(SMTP_USERNAME, SMTP_PASSWORD)
-                server.send_message(message)
-        else:
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-                server.starttls(context=ssl.create_default_context())
-                server.login(SMTP_USERNAME, SMTP_PASSWORD)
-                server.send_message(message)
-    except (OSError, smtplib.SMTPException) as exc:
-        logger.exception("Plus token email delivery failed")
-        raise HTTPException(status_code=503, detail="Token email could not be sent.") from exc
+    return send_email(recipient, "Your UsizoAI Plus activation token", text)
 
 
 @app.post("/api/devices/{device_id}/plus-payment-submissions")
@@ -1430,7 +1647,7 @@ def submit_plus_payment(
     _auth: str = Depends(require_device),
 ):
     delivery_email = body.deliveryEmail.strip().lower()
-    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", delivery_email):
+    if not EMAIL_PATTERN.fullmatch(delivery_email):
         raise HTTPException(status_code=400, detail="Enter a valid email address.")
     user_id = None
     if authorization and authorization.startswith("Bearer "):
@@ -2390,6 +2607,7 @@ def admin_plus_payment_submissions(
                 "userPhone": row["user_phone"] or "",
                 "merchantReference": row["merchant_reference"],
                 "confirmationMessage": row["confirmation_message"],
+                "deliveryEmail": row["delivery_email"] or row["user_email"] or "",
                 "status": row["status"],
                 "adminNote": row["admin_note"] or "",
                 "createdAt": row["created_at"],
@@ -2403,6 +2621,10 @@ def admin_plus_payment_submissions(
 class PlusPaymentReviewBody(BaseModel):
     action: str
     adminNote: str = ""
+    # "email" preserves the documented guarantee that a token is only issued
+    # when the customer can receive it. "manual" issues the token and returns it
+    # once so the admin can hand it over when email delivery is unavailable.
+    delivery: str = "email"
 
 
 @app.patch("/api/admin/plus-payment-submissions/{submission_id}")
@@ -2413,7 +2635,10 @@ def review_plus_payment(
 ):
     if body.action not in {"approve", "reject"}:
         raise HTTPException(status_code=400, detail="Action must be approve or reject.")
+    if body.delivery not in {"email", "manual"}:
+        raise HTTPException(status_code=400, detail="Delivery must be email or manual.")
     now = utc_now()
+    fallback_email = ""
     with db() as conn:
         row = conn.execute(
             "SELECT * FROM plus_payment_submissions WHERE id = ?",
@@ -2423,12 +2648,44 @@ def review_plus_payment(
             raise HTTPException(status_code=404, detail="Payment submission not found.")
         if row["status"] != "pending":
             raise HTTPException(status_code=409, detail="Payment submission was already reviewed.")
+        if body.action == "approve":
+            # A second token for one reference would leave someone holding a
+            # token that can never be redeemed.
+            if conn.execute(
+                "SELECT 1 FROM activation_tokens WHERE reference = ?",
+                (row["merchant_reference"],),
+            ).fetchone():
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "A token already exists for this EcoCash reference. "
+                        "Reject this submission or issue a replacement from Plus Tokens."
+                    ),
+                )
+            if row["user_id"]:
+                account = conn.execute(
+                    "SELECT email FROM users WHERE id = ?", (row["user_id"],)
+                ).fetchone()
+                if account and account["email"]:
+                    fallback_email = account["email"]
         status = "approved" if body.action == "approve" else "rejected"
     token = None
+    recipient = ""
+    transport = None
     if body.action == "approve":
         import secrets as _secrets
         token = f"USIZO-{_secrets.token_urlsafe(18).upper()}"
-        send_plus_token_email(row["delivery_email"].strip(), token, row["merchant_reference"])
+        recipient = (row["delivery_email"] or fallback_email or "").strip().lower()
+        if body.delivery == "email":
+            if not EMAIL_PATTERN.fullmatch(recipient):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "This submission has no valid delivery email. "
+                        "Approve without email and send the token yourself."
+                    ),
+                )
+            transport = send_plus_token_email(recipient, token, row["merchant_reference"])
         with db() as conn:
             conn.execute(
                 """
@@ -2443,12 +2700,16 @@ def review_plus_payment(
                 (token_digest(token), row["merchant_reference"], now),
             )
         audit(
-            "plus_payment_approved",
+            "plus_payment_approved" if body.delivery == "email" else "plus_payment_approved_manual",
             actor_type="admin",
             actor_id="admin",
             target_type="plus_payment",
             target_id=submission_id,
-            details={"merchantReference": row["merchant_reference"]},
+            details={
+                "merchantReference": row["merchant_reference"],
+                "delivery": body.delivery,
+                "transport": transport,
+            },
         )
     else:
         with db() as conn:
@@ -2468,9 +2729,46 @@ def review_plus_payment(
             target_id=submission_id,
             details={"merchantReference": row["merchant_reference"]},
         )
+    approved = body.action == "approve"
     return {
-        "status": "approved" if body.action == "approve" else "rejected",
-        "deliveryEmail": row["delivery_email"] if body.action == "approve" else None,
+        "status": "approved" if approved else "rejected",
+        "delivery": body.delivery if approved else None,
+        "deliveryEmail": recipient if approved and body.delivery == "email" else None,
+        "transport": transport,
+        # Only manual delivery returns the token: nothing else can show it
+        # again, because only its digest is stored.
+        "token": token if approved and body.delivery == "manual" else None,
+    }
+
+
+class EmailTestBody(BaseModel):
+    to: str = Field(min_length=3, max_length=320)
+
+
+@app.post("/api/admin/email-test")
+def admin_email_test(body: EmailTestBody, _admin: str = Depends(require_admin)):
+    """Send a test message and report the transport, so email can be diagnosed.
+
+    Returns HTTP 200 with ``ok: false`` when the send failed, because the
+    provider's explanation is the useful part and the dashboard shows it.
+    """
+    recipient = body.to.strip().lower()
+    if not EMAIL_PATTERN.fullmatch(recipient):
+        raise HTTPException(status_code=400, detail="Enter a valid email address.")
+    transport = email_transport()
+    try:
+        used = send_email(
+            recipient,
+            "UsizoAI email delivery test",
+            "This is a test message from the UsizoAI operations dashboard. "
+            "Plus activation tokens are delivered the same way.",
+        )
+    except HTTPException as exc:
+        return {"ok": False, "transport": transport, "detail": str(exc.detail)}
+    return {
+        "ok": True,
+        "transport": used,
+        "detail": f"Test email sent to {recipient} via {used}.",
     }
 
 

@@ -32,6 +32,24 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      # HTTPS email delivery for Plus activation tokens. Render's free instance
+      # type blocks outbound SMTP ports 25, 465, and 587, so set MAILJET_API_KEY
+      # and MAILJET_SECRET_KEY (or BREVO_API_KEY / SENDGRID_API_KEY) plus
+      # EMAIL_FROM to send mail on the free plan. The SMTP_* variables above
+      # only work on a paid instance type. EMAIL_TRANSPORT pins one provider
+      # (mailjet, brevo, sendgrid or smtp) instead of auto-selecting it.
+      - key: EMAIL_FROM
+        sync: false
+      - key: MAILJET_API_KEY
+        sync: false
+      - key: MAILJET_SECRET_KEY
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: EMAIL_TRANSPORT
+        sync: false
 
 databases:
   - name: usizoai-db

@@ -145,21 +145,34 @@
         <button class="btn-primary" onclick="issueToken()">Issue Token</button>
       </div>
 
-      <div id="tab-plus-payments" class="hidden">
-        <h1>Plus payment confirmations</h1>
-        <div class="toolbar">
-          <select id="plus-payment-status-filter">
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="all">All statuses</option>
-          </select>
-          <button class="btn-primary" onclick="loadPlusPayments()">Refresh</button>
-        </div>
-        <div id="plus-payments-table"></div>
-      </div>
       <div id="token-result" class="hidden" style="margin-bottom:16px;"></div>
       <p style="color:#6b7280; font-size:13px;">Enter the EcoCash transaction reference to issue a single-use Plus activation token.</p>
+
+      <h1 style="margin-top:32px;">Email delivery</h1>
+      <div class="toolbar">
+        <input type="email" id="email-test-to" placeholder="you@example.com">
+        <button class="btn-primary" onclick="sendTestEmail()">Send test email</button>
+      </div>
+      <div id="email-test-result" class="hidden" style="margin-bottom:16px;"></div>
+      <p style="color:#6b7280; font-size:13px;">Activation tokens are emailed with the same transport. Set
+      <code>MAILJET_API_KEY</code> and <code>MAILJET_SECRET_KEY</code> (or <code>BREVO_API_KEY</code> /
+      <code>SENDGRID_API_KEY</code>) on the server; raw SMTP ports are blocked on Render's free instance
+      type.</p>
+    </div>
+
+    <!-- Plus payments -->
+    <div id="tab-plus-payments" class="hidden">
+      <h1>Plus payment confirmations</h1>
+      <div class="toolbar">
+        <select id="plus-payment-status-filter">
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="all">All statuses</option>
+        </select>
+        <button class="btn-primary" onclick="loadPlusPayments()">Refresh</button>
+      </div>
+      <div id="plus-payments-table"></div>
     </div>
 
     <!-- Reviews -->
@@ -439,13 +452,14 @@ async function loadPlusPayments() {
         <tbody>${data.submissions.map(p => `
           <tr>
             <td><strong>${escapeHtml(p.userName || 'Unlinked device')}</strong><br><small>${escapeHtml(p.userEmail || p.userPhone || p.deviceId)}</small></td>
-            <td>${escapeHtml(p.deliveryEmail || 'Missing')}</td>
+            <td>${p.deliveryEmail ? escapeHtml(p.deliveryEmail) : '<span style="color:#b45309">No email on file</span>'}</td>
             <td>${escapeHtml(p.merchantReference)}</td>
             <td style="max-width:300px;white-space:pre-wrap">${escapeHtml(p.confirmationMessage)}</td>
             <td style="font-size:12px">${new Date(p.createdAt).toLocaleString()}</td>
             <td><span class="badge badge-${p.status === 'approved' ? 'confirmed' : p.status === 'rejected' ? 'rejected' : 'pending'}">${p.status}</span></td>
             <td>${p.status === 'pending' ? `
-              <button class="btn-success btn-sm" onclick="reviewPlusPayment('${p.id}', 'approve')">Approve & issue token</button>
+              <button class="btn-success btn-sm" onclick="reviewPlusPayment('${p.id}', 'approve')">Approve &amp; email token</button>
+              <button class="btn-outline btn-sm" onclick="reviewPlusPayment('${p.id}', 'approve', 'manual')">Approve without email</button>
               <button class="btn-danger btn-sm" onclick="reviewPlusPayment('${p.id}', 'reject')">Reject</button>
             ` : ''}</td>
           </tr>`).join('')}</tbody>
@@ -453,19 +467,56 @@ async function loadPlusPayments() {
   } catch (e) { document.getElementById('plus-payments-table').innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`; }
 }
 
-async function reviewPlusPayment(id, action) {
-  const note = prompt(action === 'approve' ? 'Optional verification note:' : 'Reason for rejection:');
+async function reviewPlusPayment(id, action, delivery = 'email') {
+  const label = action === 'approve'
+    ? (delivery === 'manual'
+        ? 'Optional verification note (the token will be shown here so you can send it yourself):'
+        : 'Optional verification note:')
+    : 'Reason for rejection:';
+  const note = prompt(label);
   if (note === null) return;
   try {
     const data = await api(`/api/admin/plus-payment-submissions/${id}`, {
       method: 'PATCH',
-      body: { action, adminNote: note }
+      body: { action, adminNote: note, delivery }
     });
-    if (data.deliveryEmail) {
-      alert(`Payment approved. The activation token was emailed to ${data.deliveryEmail}.`);
+    if (data.token) {
+      showIssuedToken(data.token);
+    } else if (data.deliveryEmail) {
+      alert(`Payment approved. The activation token was emailed to ${data.deliveryEmail} via ${data.transport}.`);
     }
     loadPlusPayments();
-  } catch (e) { alert(e.message); }
+  } catch (e) {
+    if (action === 'approve' && delivery === 'email') {
+      const fallback = confirm(`${e.message}\n\nApprove this payment without email and show the token here, so you can send it yourself?`);
+      if (fallback) return reviewPlusPayment(id, 'approve', 'manual');
+      return;
+    }
+    alert(e.message);
+  }
+}
+
+function showIssuedToken(token) {
+  alert(`Payment approved. Send this activation token to the customer now — it cannot be shown again:\n\n${token}`);
+}
+
+async function sendTestEmail() {
+  const to = document.getElementById('email-test-to').value.trim();
+  const box = document.getElementById('email-test-result');
+  if (!to) return;
+  try {
+    const data = await api('/api/admin/email-test', { method: 'POST', body: { to } });
+    box.classList.remove('hidden');
+    box.innerHTML = `
+      <div style="background:${data.ok ? '#d1fae5' : '#fee2e2'};padding:14px;border-radius:8px">
+        <p style="font-weight:600;color:${data.ok ? '#065f46' : '#991b1b'}">${data.ok ? 'Test email sent' : 'Test email failed'}</p>
+        <p style="font-size:13px;margin-top:6px">Transport: <strong>${escapeHtml(data.transport)}</strong></p>
+        <p style="font-size:13px;margin-top:4px">${escapeHtml(data.detail)}</p>
+      </div>`;
+  } catch (e) {
+    box.classList.remove('hidden');
+    box.innerHTML = `<div class="error-msg">${escapeHtml(e.message)}</div>`;
+  }
 }
 
 // ── Vendors ──────────────────────────────────────────────────────────

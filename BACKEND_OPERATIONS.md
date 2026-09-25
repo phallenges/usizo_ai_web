@@ -134,31 +134,69 @@ The current flow is manual EcoCash verification:
 5. The backend stores a pending payment submission.
 6. The admin independently verifies the payment in EcoCash.
 7. The admin opens **Plus Payments** and approves or rejects the submission.
-8. On approval, the backend creates a random single-use token and emails it to
-   the submitted email address.
+   **Approve & email token** emails the token to the address shown in the row;
+   **Approve without email** issues the token and displays it once so it can be
+   sent by hand.
+8. On email approval, the backend creates a random single-use token and emails
+   it to the submitted address, falling back to the linked account's email when
+   the submission has none.
 9. The customer enters the token in **Activate Plus**.
 10. The backend stores only a token digest and marks the token redeemed after
     successful activation.
 
 A payment is not approved merely because a customer supplied a screenshot,
-reference, or message. If SMTP delivery fails, approval fails and no token is
-issued.
+reference, or message. If email delivery fails, approval fails and no token is
+issued, so choose the manual path deliberately instead of losing the token. A
+reference can only ever carry one token: approving a submission whose reference
+already has a token returns HTTP 409.
 
-## SMTP token delivery
+## Activation token email delivery
 
-Configure these Render variables:
+Set an HTTPS provider on Render:
 
 ```text
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=<sending Gmail address>
-SMTP_PASSWORD=<Gmail App Password, not the normal password>
-SMTP_FROM=UsizoAI <sending Gmail address>
+EMAIL_FROM=UsizoAI <verified sender address>
+MAILJET_API_KEY=<Mailjet API key>
+MAILJET_SECRET_KEY=<Mailjet secret key>
 ```
 
-For Gmail, enable 2-Step Verification and create an App Password. Remove
-spaces from the App Password before saving it in Render. Redeploy after
-changing environment variables.
+The first transport that is fully configured is used, in this order:
+
+| Transport | Variables | Notes |
+| --- | --- | --- |
+| `mailjet` | `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `EMAIL_FROM` | HTTPS, works on free instances, 6,000/month with a 200/day cap |
+| `brevo` | `BREVO_API_KEY`, `EMAIL_FROM` | HTTPS, works on free instances, 300/day, account approval required first |
+| `sendgrid` | `SENDGRID_API_KEY`, `EMAIL_FROM` | HTTPS, but the free plan was retired in May 2025; new accounts get 60 days of 100/day |
+| `smtp` | `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Blocked on Render's free instance type (ports 25, 465, and 587) |
+
+Set `EMAIL_TRANSPORT` to pin one of them. An unknown or incompletely configured
+pin reports `Email delivery is not configured.` rather than falling back, so a
+stale key for a provider whose account cannot send cannot shadow the working
+one. An unknown name is ignored, with a warning in the logs.
+
+Mailjet can answer HTTP 200 while the individual message failed, so a
+per-message `Status: error` in the response counts as a failure too. That is why
+the dashboard never reports a token as emailed when it was not.
+
+Verify from **Plus Tokens → Send test email** in the dashboard, or
+`POST /api/admin/email-test` with `{"to": "you@example.com"}`. The response
+reports the transport and the provider's own failure message, and is HTTP 200
+with `"ok": false` when delivery failed.
+
+Common failures:
+
+| Message | Meaning |
+| --- | --- |
+| `Email delivery is not configured.` | No provider key and no complete SMTP block is set |
+| `... brevo rejected the message (HTTP 401: Key not found).` | The API key is wrong or revoked |
+| `... mailjet rejected the message (HTTP 401: API key authentication failure).` | The API key and secret key do not match |
+| `... mailjet reported a send failure (Sender is not validated).` | The sender address was never confirmed in Mailjet |
+| `... rejected the message (HTTP 400: ...)` | The sender address is not verified at the provider |
+| `... could not be reached (ConnectError).` | Outbound HTTPS or SMTP is blocked, or the host is wrong |
+
+For Gmail, enable 2-Step Verification and create an App Password. Remove spaces
+from the App Password before saving it in Render. Redeploy after changing
+environment variables.
 
 ## Marketplace payment proof
 

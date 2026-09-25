@@ -4,6 +4,42 @@ All notable changes to UsizoAI are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.2] - 2026-09-24
+
+### Fixed
+
+- Restored Plus activation token delivery. Render's free instance type blocks
+  outbound traffic to SMTP ports 25, 465, and 587, so every approval failed with
+  `Token email could not be sent.` Token email is now delivered over an HTTPS
+  provider, auto-selected in the order `mailjet`, `brevo`, `sendgrid`, `smtp`;
+  set `EMAIL_TRANSPORT` to pin one. Mailjet is first because it is the only
+  free option found that accepts a Gmail sender without owning a domain. The
+  SMTP settings still work on a paid instance type or when self-hosting.
+- `GET /api/admin/plus-payment-submissions` now returns `deliveryEmail`, which
+  the Plus Payments table reads. Rows showed `Missing` even when the app had
+  stored the address.
+- Approving a payment no longer fails on submissions without a delivery email:
+  it falls back to the linked account's email, or returns a clear message
+  instead of sending to an empty address.
+- Approving a submission whose EcoCash reference already has an activation token
+  returns HTTP 409 instead of issuing a second, unusable token.
+
+### Added
+
+- **Approve without email** in the Plus Payments table issues the token and
+  shows it once so it can be handed over when email is unavailable; the approval
+  response now reports the transport used.
+- `POST /api/admin/email-test` and **Plus Tokens → Send test email** verify email
+  delivery and surface the provider's own error message.
+- Backend tests cover approval delivery, delivery failure, manual delivery,
+  duplicate references, missing addresses, transport selection, and the email
+  test endpoint.
+
+### Notes
+
+- Backend-only release. No Android rebuild is required, and `pubspec.yaml` is
+  unchanged.
+
 ## [1.2.1] - 2026-09-23
 
 ### Security

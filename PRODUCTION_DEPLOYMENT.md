@@ -50,7 +50,53 @@ The service refuses to start in production until `SEED_SUPPLIER_PIN` is set
 to a 4–64 digit value. Set it in the Render dashboard (it is declared with
 `sync: false` in `render.yaml` so the value never lives in the repository).
 
-For automatic Plus token email delivery, also set:
+### Plus activation token email
+
+Approved Plus payments email a single-use activation token. Render's free
+instance type blocks outbound traffic to SMTP ports 25, 465, and 587, so the
+SMTP settings below only work on a paid instance type. Set an HTTPS provider
+instead:
+
+```text
+EMAIL_FROM=UsizoAI <verified-sender@example.com>
+MAILJET_API_KEY=<Mailjet API key>
+MAILJET_SECRET_KEY=<Mailjet secret key>
+```
+
+Transports are auto-selected in this order, and the first one that is fully
+configured is used:
+
+1. `mailjet` — `MAILJET_API_KEY` and `MAILJET_SECRET_KEY`. The free plan
+   includes 6,000 emails a month with a 200/day cap and needs no card. Add the
+   sender under **Account → Add a Sender Address**, then click the confirmation
+   link in that mailbox. Mailjet accepts a Gmail sender but warns that freemail
+   senders are filtered more often, so expect some mail in spam.
+2. `brevo` — `BREVO_API_KEY`. 300 emails/day free, and the account must be
+   approved for sending before the API will deliver anything.
+3. `sendgrid` — `SENDGRID_API_KEY`. **There is no permanent free plan:** Twilio
+   retired it on 27 May 2025, and new accounts get a 60-day trial of 100
+   emails/day after which sending stops until a paid plan is selected.
+4. `smtp` — the `SMTP_*` variables, which need a paid instance type.
+
+Set `EMAIL_TRANSPORT` to pin one of `mailjet`, `brevo`, `sendgrid` or `smtp`.
+A pin that is unknown or incompletely configured reports
+`Email delivery is not configured.` instead of quietly falling back, and an
+unknown name is ignored with a warning in the logs. This matters when a key for
+a provider whose account cannot send is still present: pin the working provider
+so it cannot shadow it.
+
+`EMAIL_FROM` falls back to `SMTP_FROM` and must be the sender address verified
+at the provider. Verify delivery from the operations dashboard with
+**Plus Tokens → Send test email**, which reports the transport in use and the
+provider's own error message.
+
+Sending as `@gmail.com` from a third party is the root cause of most provider
+rejections and filtering: Postmark, SMTP2GO and Resend refuse free domains
+outright, while Brevo, Mailjet and SendGrid all warn about it. Owning a domain
+(about $10/year) and authenticating it removes the problem permanently and
+opens every provider.
+
+On a paid instance type, or when self-hosting, Gmail SMTP still works:
 
 ```text
 SMTP_HOST=smtp.gmail.com
@@ -147,8 +193,11 @@ If the person has not allowed installs from this app yet, the app opens the
 - `flutter analyze` has no errors.
 - `/health`, `/`, and `/admin/` return HTTP 200.
 - PostgreSQL is connected and durable.
-- SMTP sends a test message.
-- Plus payment approval does not issue a token if SMTP fails.
+- Email delivery is configured (`BREVO_API_KEY` or `SENDGRID_API_KEY` plus
+  `EMAIL_FROM`; raw SMTP requires a paid instance type) and the dashboard's
+  **Plus Tokens → Send test email** reports success.
+- Plus payment approval emails the token, or is approved without email and the
+  token is handed to the customer manually.
 - EcoCash payment verification remains manual.
 - The APK points to the correct public API origin.
 - The GitHub Release asset is named `UsizoAI.apk`.

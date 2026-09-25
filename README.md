@@ -92,7 +92,7 @@ confirm the install; see
 
 ## Deployment
 
-Render deployment, environment variables, SMTP setup, database requirements,
+Render deployment, environment variables, email delivery, database requirements,
 health checks, and release procedures are documented in
 [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md).
 
