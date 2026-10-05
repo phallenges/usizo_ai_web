@@ -71,14 +71,9 @@ configured is used:
    sender under **Account → Add a Sender Address**, then click the confirmation
    link in that mailbox. Mailjet accepts a Gmail sender but warns that freemail
    senders are filtered more often, so expect some mail in spam.
-2. `brevo` — `BREVO_API_KEY`. 300 emails/day free, and the account must be
-   approved for sending before the API will deliver anything.
-3. `sendgrid` — `SENDGRID_API_KEY`. **There is no permanent free plan:** Twilio
-   retired it on 27 May 2025, and new accounts get a 60-day trial of 100
-   emails/day after which sending stops until a paid plan is selected.
-4. `smtp` — the `SMTP_*` variables, which need a paid instance type.
+2. `smtp` — the `SMTP_*` variables, which need a paid instance type.
 
-Set `EMAIL_TRANSPORT` to pin one of `mailjet`, `brevo`, `sendgrid` or `smtp`.
+Set `EMAIL_TRANSPORT` to pin `mailjet` or `smtp`.
 A pin that is unknown or incompletely configured reports
 `Email delivery is not configured.` instead of quietly falling back, and an
 unknown name is ignored with a warning in the logs. This matters when a key for
@@ -92,9 +87,9 @@ provider's own error message.
 
 Sending as `@gmail.com` from a third party is the root cause of most provider
 rejections and filtering: Postmark, SMTP2GO and Resend refuse free domains
-outright, while Brevo, Mailjet and SendGrid all warn about it. Owning a domain
-(about $10/year) and authenticating it removes the problem permanently and
-opens every provider.
+outright, and Mailjet warns that freemail senders are filtered more often.
+Owning a domain (about $10/year) and authenticating it removes the problem
+permanently and opens every provider.
 
 On a paid instance type, or when self-hosting, Gmail SMTP still works:
 
@@ -193,8 +188,8 @@ If the person has not allowed installs from this app yet, the app opens the
 - `flutter analyze` has no errors.
 - `/health`, `/`, and `/admin/` return HTTP 200.
 - PostgreSQL is connected and durable.
-- Email delivery is configured (`BREVO_API_KEY` or `SENDGRID_API_KEY` plus
-  `EMAIL_FROM`; raw SMTP requires a paid instance type) and the dashboard's
+- Email delivery is configured (`MAILJET_API_KEY` and `MAILJET_SECRET_KEY`
+  plus `EMAIL_FROM`; raw SMTP requires a paid instance type) and the dashboard's
   **Plus Tokens → Send test email** reports success.
 - Plus payment approval emails the token, or is approved without email and the
   token is handed to the customer manually.

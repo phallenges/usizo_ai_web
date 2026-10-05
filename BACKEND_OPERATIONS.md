@@ -165,8 +165,6 @@ The first transport that is fully configured is used, in this order:
 | Transport | Variables | Notes |
 | --- | --- | --- |
 | `mailjet` | `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `EMAIL_FROM` | HTTPS, works on free instances, 6,000/month with a 200/day cap |
-| `brevo` | `BREVO_API_KEY`, `EMAIL_FROM` | HTTPS, works on free instances, 300/day, account approval required first |
-| `sendgrid` | `SENDGRID_API_KEY`, `EMAIL_FROM` | HTTPS, but the free plan was retired in May 2025; new accounts get 60 days of 100/day |
 | `smtp` | `SMTP_HOST`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Blocked on Render's free instance type (ports 25, 465, and 587) |
 
 Set `EMAIL_TRANSPORT` to pin one of them. An unknown or incompletely configured
@@ -188,7 +186,6 @@ Common failures:
 | Message | Meaning |
 | --- | --- |
 | `Email delivery is not configured.` | No provider key and no complete SMTP block is set |
-| `... brevo rejected the message (HTTP 401: Key not found).` | The API key is wrong or revoked |
 | `... mailjet rejected the message (HTTP 401: API key authentication failure).` | The API key and secret key do not match |
 | `... mailjet reported a send failure (Sender is not validated).` | The sender address was never confirmed in Mailjet |
 | `... rejected the message (HTTP 400: ...)` | The sender address is not verified at the provider |

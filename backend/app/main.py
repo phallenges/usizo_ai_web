@@ -68,16 +68,12 @@ SMTP_FROM = os.getenv("SMTP_FROM", "").strip()
 # Render's free instance type blocks outbound traffic to SMTP ports 25, 465, and
 # 587, so HTTPS providers come first and SMTP is kept for paid instances or
 # self-hosting.
-EMAIL_TRANSPORTS = ("mailjet", "brevo", "sendgrid", "smtp")
+EMAIL_TRANSPORTS = ("mailjet", "smtp")
 EMAIL_PROVIDER_URLS = {
     "mailjet": "https://api.mailjet.com/v3.1/send",
-    "brevo": "https://api.brevo.com/v3/smtp/email",
-    "sendgrid": "https://api.sendgrid.com/v3/mail/send",
 }
 MAILJET_API_KEY = os.getenv("MAILJET_API_KEY", "").strip()
 MAILJET_SECRET_KEY = os.getenv("MAILJET_SECRET_KEY", "").strip()
-BREVO_API_KEY = os.getenv("BREVO_API_KEY", "").strip()
-SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "").strip()
 EMAIL_TRANSPORT = os.getenv("EMAIL_TRANSPORT", "").strip().lower()
 EMAIL_FROM = os.getenv("EMAIL_FROM", "").strip() or SMTP_FROM
 EMAIL_TIMEOUT_SECONDS = float(os.getenv("EMAIL_TIMEOUT_SECONDS", "15"))
@@ -1416,10 +1412,6 @@ def _configured_transports() -> list[str]:
     configured = []
     if MAILJET_API_KEY and MAILJET_SECRET_KEY:
         configured.append("mailjet")
-    if BREVO_API_KEY:
-        configured.append("brevo")
-    if SENDGRID_API_KEY:
-        configured.append("sendgrid")
     if _smtp_configured():
         configured.append("smtp")
     return configured
@@ -1499,23 +1491,17 @@ def _message_level_failure(response: httpx.Response) -> str:
 
 
 def _provider_error(response: httpx.Response) -> str:
-    """Explain a rejected send using the provider's own error fields.
+    """Explain a rejected send using Mailjet's own error fields.
 
-    Brevo reports ``message``, SendGrid reports ``errors[].message`` and Mailjet
-    reports either a top-level ``ErrorMessage`` or
-    ``Messages[].Errors[].ErrorMessage``, so all of them are read.
+    Mailjet reports either a top-level ``ErrorMessage``/``ErrorInfo`` or a
+    ``Messages[].Errors[].ErrorMessage`` inside the body.
     """
     body = _response_body(response)
     detail = str(
-        body.get("message")
-        or body.get("error")
-        or body.get("ErrorMessage")
+        body.get("ErrorMessage")
         or body.get("ErrorInfo")
         or ""
     ).strip()
-    errors = body.get("errors")
-    if not detail and isinstance(errors, list) and errors and isinstance(errors[0], dict):
-        detail = str(errors[0].get("message") or "").strip()
     if not detail:
         detail = _message_level_failure(response)
     return f"HTTP {response.status_code}" + (f": {detail}" if detail else "")
@@ -1542,22 +1528,6 @@ def _send_via_http_provider(provider: str, recipient: str, subject: str, text: s
             f"{MAILJET_API_KEY}:{MAILJET_SECRET_KEY}".encode("utf-8")
         ).decode("ascii")
         headers = {"Authorization": f"Basic {credentials}", "accept": "application/json"}
-    elif provider == "brevo":
-        payload = {
-            "sender": {"email": address, "name": name or "UsizoAI"},
-            "to": [{"email": recipient}],
-            "subject": subject,
-            "textContent": text,
-        }
-        headers = {"api-key": BREVO_API_KEY, "accept": "application/json"}
-    elif provider == "sendgrid":
-        payload = {
-            "personalizations": [{"to": [{"email": recipient}]}],
-            "from": {"email": address, "name": name or "UsizoAI"},
-            "subject": subject,
-            "content": [{"type": "text/plain", "value": text}],
-        }
-        headers = {"Authorization": f"Bearer {SENDGRID_API_KEY}"}
     else:
         raise EmailDeliveryFailed(f"Unknown email transport: {provider}.")
     try:

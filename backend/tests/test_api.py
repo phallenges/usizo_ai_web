@@ -1113,22 +1113,10 @@ class _FakeResponse:
         return self._body
 
 
-def _stub_brevo(monkeypatch, send):
-    """Deliver email through Brevo and route its send through ``send``."""
-    monkeypatch.setattr(main_module, "BREVO_API_KEY", "brevo-test-key")
-    monkeypatch.setattr(main_module, "SENDGRID_API_KEY", "")
-    monkeypatch.setattr(main_module, "MAILJET_API_KEY", "")
-    monkeypatch.setattr(main_module, "MAILJET_SECRET_KEY", "")
-    monkeypatch.setattr(main_module, "EMAIL_FROM", "UsizoAI <no-reply@example.com>")
-    monkeypatch.setattr(main_module, "_post_json", send)
-
-
 def _stub_mailjet(monkeypatch, send):
     """Deliver email through Mailjet and route its send through ``send``."""
     monkeypatch.setattr(main_module, "MAILJET_API_KEY", "mailjet-test-key")
     monkeypatch.setattr(main_module, "MAILJET_SECRET_KEY", "mailjet-test-secret")
-    monkeypatch.setattr(main_module, "BREVO_API_KEY", "")
-    monkeypatch.setattr(main_module, "SENDGRID_API_KEY", "")
     monkeypatch.setattr(main_module, "EMAIL_FROM", "UsizoAI <no-reply@example.com>")
     monkeypatch.setattr(main_module, "_post_json", send)
 
@@ -1161,9 +1149,8 @@ def _submit_plus_payment(client, reference, email):
 
 def test_email_transport_prefers_https_providers(monkeypatch):
     """HTTPS providers win over SMTP, which free Render instances cannot use."""
-    for name in ("BREVO_API_KEY", "SENDGRID_API_KEY", "MAILJET_API_KEY",
-                 "MAILJET_SECRET_KEY", "SMTP_HOST", "SMTP_USERNAME",
-                 "SMTP_PASSWORD", "SMTP_FROM", "EMAIL_TRANSPORT"):
+    for name in ("MAILJET_API_KEY", "MAILJET_SECRET_KEY", "SMTP_HOST",
+                 "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "EMAIL_TRANSPORT"):
         monkeypatch.setattr(main_module, name, "")
     assert main_module.email_transport() == "none"
 
@@ -1173,41 +1160,21 @@ def test_email_transport_prefers_https_providers(monkeypatch):
     monkeypatch.setattr(main_module, "SMTP_FROM", "UsizoAI <ops@example.com>")
     assert main_module.email_transport() == "smtp"
 
-    monkeypatch.setattr(main_module, "SENDGRID_API_KEY", "sg-key")
-    assert main_module.email_transport() == "sendgrid"
-
-    monkeypatch.setattr(main_module, "BREVO_API_KEY", "brevo-key")
-    assert main_module.email_transport() == "brevo"
+    monkeypatch.setattr(main_module, "MAILJET_API_KEY", "mailjet-key")
+    monkeypatch.setattr(main_module, "MAILJET_SECRET_KEY", "mailjet-secret")
+    assert main_module.email_transport() == "mailjet"
 
 
 def test_send_email_reports_provider_rejection(monkeypatch):
     """A provider's own error text must reach the dashboard."""
-    _stub_brevo(
+    _stub_mailjet(
         monkeypatch,
-        lambda url, headers, payload: _FakeResponse(401, {"message": "Key not found"}),
+        lambda url, headers, payload: _FakeResponse(400, {"ErrorMessage": "Invalid recipient"}),
     )
     with pytest.raises(HTTPException) as failure:
         main_module.send_email("buyer@example.com", "Subject", "Body")
     assert failure.value.status_code == 503
-    assert "Key not found" in failure.value.detail
-
-
-def test_send_email_posts_to_brevo(monkeypatch):
-    calls = []
-    _stub_brevo(
-        monkeypatch,
-        lambda url, headers, payload: calls.append((url, headers, payload)) or _FakeResponse(),
-    )
-
-    assert main_module.send_email("buyer@example.com", "Subject", "Body") == "brevo"
-
-    url, headers, payload = calls[0]
-    assert url == main_module.EMAIL_PROVIDER_URLS["brevo"]
-    assert headers["api-key"] == "brevo-test-key"
-    assert payload["sender"] == {"email": "no-reply@example.com", "name": "UsizoAI"}
-    assert payload["to"] == [{"email": "buyer@example.com"}]
-    assert payload["subject"] == "Subject"
-    assert payload["textContent"] == "Body"
+    assert "Invalid recipient" in failure.value.detail
 
 
 def test_send_email_posts_to_mailjet(monkeypatch):
@@ -1278,22 +1245,24 @@ def test_send_email_reports_mailjet_message_level_failure(monkeypatch):
 
 def test_email_transport_prefers_mailjet_and_honours_the_pin(monkeypatch):
     """Mailjet comes first, and EMAIL_TRANSPORT pins or blanks the choice."""
-    for name in ("MAILJET_API_KEY", "MAILJET_SECRET_KEY", "BREVO_API_KEY",
-                 "SENDGRID_API_KEY", "SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD",
-                 "SMTP_FROM", "EMAIL_TRANSPORT"):
+    for name in ("MAILJET_API_KEY", "MAILJET_SECRET_KEY", "SMTP_HOST",
+                 "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM", "EMAIL_TRANSPORT"):
         monkeypatch.setattr(main_module, name, "")
 
-    monkeypatch.setattr(main_module, "BREVO_API_KEY", "brevo-key")
-    assert main_module.email_transport() == "brevo"
+    monkeypatch.setattr(main_module, "SMTP_HOST", "smtp.example.com")
+    monkeypatch.setattr(main_module, "SMTP_USERNAME", "ops@example.com")
+    monkeypatch.setattr(main_module, "SMTP_PASSWORD", "app-password")
+    monkeypatch.setattr(main_module, "SMTP_FROM", "UsizoAI <ops@example.com>")
+    assert main_module.email_transport() == "smtp"
 
-    # A complete Mailjet key pair outranks Brevo.
+    # A complete Mailjet key pair outranks SMTP.
     monkeypatch.setattr(main_module, "MAILJET_API_KEY", "mailjet-key")
     monkeypatch.setattr(main_module, "MAILJET_SECRET_KEY", "mailjet-secret")
     assert main_module.email_transport() == "mailjet"
 
-    # Half a key pair is unusable, so Brevo stays in charge.
+    # Half a key pair is unusable, so SMTP stays in charge.
     monkeypatch.setattr(main_module, "MAILJET_SECRET_KEY", "")
-    assert main_module.email_transport() == "brevo"
+    assert main_module.email_transport() == "smtp"
 
     # A pin that is not configured reports none instead of using another one.
     monkeypatch.setattr(main_module, "EMAIL_TRANSPORT", "mailjet")
@@ -1313,7 +1282,7 @@ def test_plus_payment_approval_emails_activation_token(client, monkeypatch):
     """Approving a payment emails the token, and that token is the live one."""
     headers = _admin(client, monkeypatch)
     sent = []
-    _stub_brevo(
+    _stub_mailjet(
         monkeypatch,
         lambda url, request_headers, payload: sent.append(payload) or _FakeResponse(),
     )
@@ -1328,12 +1297,12 @@ def test_plus_payment_approval_emails_activation_token(client, monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "approved"
-    assert body["transport"] == "brevo"
+    assert body["transport"] == "mailjet"
     assert body["deliveryEmail"] == "buyer@example.com"
     assert body["token"] is None  # emailed tokens are never echoed back
-    assert sent[0]["to"] == [{"email": "buyer@example.com"}]
+    assert sent[0]["Messages"][0]["To"] == [{"Email": "buyer@example.com"}]
 
-    emailed_token = re.search(r"USIZO-\S+", sent[0]["textContent"]).group(0)
+    emailed_token = re.search(r"USIZO-\S+", sent[0]["Messages"][0]["TextPart"]).group(0)
     device_id, device_headers = _register_device(client)
     activated = client.post(
         f"/api/devices/{device_id}/subscriptions/activate",
@@ -1357,7 +1326,7 @@ def test_plus_payment_approval_keeps_pending_when_email_fails(client, monkeypatc
     def unreachable(url, request_headers, payload):
         raise httpx.ConnectError("connection refused")
 
-    _stub_brevo(monkeypatch, unreachable)
+    _stub_mailjet(monkeypatch, unreachable)
     submission_id = _submit_plus_payment(client, "ECO-DELIVER-2", "buyer@example.com")
 
     response = client.patch(
@@ -1388,7 +1357,7 @@ def test_plus_payment_approval_can_deliver_token_manually(client, monkeypatch):
     def must_not_send(url, request_headers, payload):
         raise AssertionError("manual delivery must not send email")
 
-    _stub_brevo(monkeypatch, must_not_send)
+    _stub_mailjet(monkeypatch, must_not_send)
     submission_id = _submit_plus_payment(client, "ECO-DELIVER-3", "buyer@example.com")
 
     response = client.patch(
@@ -1439,7 +1408,8 @@ def _insert_pending_submission(device_id, reference, email="", user_id=None):
 def test_plus_payment_approval_without_delivery_email_is_rejected(client, monkeypatch):
     """A legacy row with no address must fail clearly instead of sending to ''."""
     headers = _admin(client, monkeypatch)
-    monkeypatch.setattr(main_module, "BREVO_API_KEY", "brevo-test-key")
+    monkeypatch.setattr(main_module, "MAILJET_API_KEY", "mailjet-test-key")
+    monkeypatch.setattr(main_module, "MAILJET_SECRET_KEY", "mailjet-test-secret")
     device_id, _ = _register_device(client)
     submission_id = _insert_pending_submission(device_id, "ECO-NO-EMAIL")
 
@@ -1468,7 +1438,7 @@ def test_plus_payment_approval_falls_back_to_account_email(client, monkeypatch):
     """A linked account still receives the token when the row has no address."""
     headers = _admin(client, monkeypatch)
     sent = []
-    _stub_brevo(
+    _stub_mailjet(
         monkeypatch,
         lambda url, request_headers, payload: sent.append(payload) or _FakeResponse(),
     )
@@ -1498,7 +1468,7 @@ def test_plus_payment_approval_falls_back_to_account_email(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["deliveryEmail"] == "legacy@example.com"
-    assert sent[0]["to"] == [{"email": "legacy@example.com"}]
+    assert sent[0]["Messages"][0]["To"] == [{"Email": "legacy@example.com"}]
 
 
 def test_plus_payment_approval_rejects_reference_with_existing_token(client, monkeypatch):
@@ -1537,8 +1507,8 @@ def test_plus_payment_approval_rejects_unknown_delivery(client, monkeypatch):
 def test_admin_email_test_reports_missing_configuration(client, monkeypatch):
     """An unconfigured server explains itself instead of failing silently."""
     headers = _admin(client, monkeypatch)
-    for name in ("BREVO_API_KEY", "SENDGRID_API_KEY", "SMTP_HOST", "SMTP_USERNAME",
-                 "SMTP_PASSWORD", "SMTP_FROM"):
+    for name in ("MAILJET_API_KEY", "MAILJET_SECRET_KEY", "SMTP_HOST",
+                 "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM"):
         monkeypatch.setattr(main_module, name, "")
 
     body = client.post(
@@ -1553,9 +1523,11 @@ def test_admin_email_test_reports_missing_configuration(client, monkeypatch):
 def test_admin_email_test_reports_transport_failure(client, monkeypatch):
     """The dashboard needs the provider's reason, not a generic failure."""
     headers = _admin(client, monkeypatch)
-    _stub_brevo(
+    _stub_mailjet(
         monkeypatch,
-        lambda url, request_headers, payload: _FakeResponse(401, {"message": "Key not found"}),
+        lambda url, request_headers, payload: _FakeResponse(
+            401, {"ErrorMessage": "API key authentication failure"}
+        ),
     )
 
     response = client.post(
@@ -1565,14 +1537,17 @@ def test_admin_email_test_reports_transport_failure(client, monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["ok"] is False
-    assert body["transport"] == "brevo"
-    assert "Key not found" in body["detail"]
+    assert body["transport"] == "mailjet"
+    assert "API key authentication failure" in body["detail"]
 
 
 def test_admin_email_test_reports_success(client, monkeypatch):
     headers = _admin(client, monkeypatch)
-    _stub_brevo(
-        monkeypatch, lambda url, request_headers, payload: _FakeResponse(201, {"messageId": "1"})
+    _stub_mailjet(
+        monkeypatch,
+        lambda url, request_headers, payload: _FakeResponse(
+            200, {"Messages": [{"Status": "success"}]}
+        ),
     )
 
     body = client.post(
@@ -1580,6 +1555,6 @@ def test_admin_email_test_reports_success(client, monkeypatch):
     ).json()
 
     assert body["ok"] is True
-    assert body["transport"] == "brevo"
+    assert body["transport"] == "mailjet"
     assert "ops@example.com" in body["detail"]
 

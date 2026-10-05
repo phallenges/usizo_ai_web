@@ -4,6 +4,18 @@ All notable changes to UsizoAI are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- Outbound email now supports only the `mailjet` and `smtp` transports
+  (auto-selected in that order; `EMAIL_TRANSPORT` pins one). The Brevo and
+  SendGrid transports were removed: SendGrid has had no free plan since May
+  2025 and Brevo was never configured in production. Their API keys, payload
+  builders, dashboard help text, and transport tests were dropped with them.
+- Removed the unused `SEED_DEMO_DATA` line from `backend/.env.example`; no
+  code reads it.
+
 ## [1.2.2] - 2026-09-24
 
 ### Fixed
