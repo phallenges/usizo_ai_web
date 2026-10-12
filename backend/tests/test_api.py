@@ -361,6 +361,8 @@ def test_vendor_register_and_login(client):
     )
     assert r2.status_code == 200
     assert r2.json()["token"]
+    catalog = client.get("/api/catalog/vendors").json()["vendors"]
+    assert any(vendor["id"] == r.json()["vendor"]["id"] for vendor in catalog)
 
 
 def test_vendor_register_duplicate_phone(client):
@@ -738,6 +740,38 @@ def test_production_supplier_seed_repairs_legacy_row(client):
     assert r.json()["vendor"]["name"] == "Treasure Motsu"
 
 
+def test_production_supplier_seed_preserves_added_vendors_and_products(client, monkeypatch):
+    monkeypatch.setattr(main_module, "ENVIRONMENT", "development")
+    monkeypatch.setenv("SEED_SUPPLIER_PIN", "1234")
+    registered = client.post(
+        "/api/vendors/register",
+        json={
+            "businessName": "Persistent Shop",
+            "location": "Harare",
+            "phone": "+263771234567",
+            "pin": "2468",
+        },
+    ).json()
+    vendor_id = registered["vendor"]["id"]
+    headers = _auth_header(registered["token"])
+    product = client.post(
+        "/api/vendors/me/products",
+        headers=headers,
+        json={"name": "Persistent Product", "priceCents": 1200},
+    ).json()["product"]
+
+    main_module._ensure_production_supplier()
+
+    catalog_vendors = client.get("/api/catalog/vendors").json()["vendors"]
+    catalog_products = client.get("/api/catalog/products").json()["products"]
+    assert any(vendor["id"] == vendor_id for vendor in catalog_vendors)
+    assert any(item["id"] == product["id"] for item in catalog_products)
+
+    with db() as conn:
+        conn.execute("DELETE FROM products WHERE id = ?", (product["id"],))
+        conn.execute("DELETE FROM vendors WHERE id = ?", (vendor_id,))
+
+
 def test_vendor_payment_proof_review_flow(client):
     """Vendor can view and approve/reject a buyer's uploaded payment proof."""
     reg = client.post(
@@ -909,11 +943,19 @@ def test_product_image_upload(client):
     )
     assert r2.status_code == 200
     asset = r2.json()["imageAsset"]
-    assert asset.startswith("/uploads/")
+    assert asset == f"/api/products/{pid}/image"
+    listed_product = next(
+        item
+        for item in client.get("/api/catalog/products").json()["products"]
+        if item["id"] == pid
+    )
+    assert listed_product["imageAsset"] == asset
 
-    # Serve the image
+    # The marketplace can fetch the image from the persistent product catalog.
     r3 = client.get(asset)
     assert r3.status_code == 200
+    assert r3.headers["content-type"] == "image/png"
+    assert r3.content == img
 
 
 def test_image_upload_bad_type(client):
@@ -1084,6 +1126,9 @@ def test_vendor_login_rate_limited(client, monkeypatch):
     for _ in range(2):
         assert client.post("/api/vendors/login", json=body).status_code == 401
     assert client.post("/api/vendors/login", json=body).status_code == 429
+    for _ in range(2):
+        assert client.post("/api/vendors/register", json={}).status_code == 422
+    assert client.post("/api/vendors/register", json={}).status_code == 429
 
 
 def test_production_requires_explicit_supplier_pin(monkeypatch):
@@ -1557,4 +1602,3 @@ def test_admin_email_test_reports_success(client, monkeypatch):
     assert body["ok"] is True
     assert body["transport"] == "mailjet"
     assert "ops@example.com" in body["detail"]
-

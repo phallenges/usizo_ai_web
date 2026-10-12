@@ -23,7 +23,7 @@ import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -97,6 +97,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path in (
             "/api/auth/register",
             "/api/auth/login",
+            "/api/vendors/register",
             "/api/vendors/login",
             "/api/admin/login",
         ):
@@ -169,7 +170,7 @@ async def lifespan(app: FastAPI):
 
 
 def _ensure_production_supplier() -> None:
-    """Keep production limited to the current supplier until products are added.
+    """Ensure the original supplier account exists without removing catalog data.
 
     Repairs the seeded supplier row on every boot: older deploys stored the
     phone with spaces (which made vendor login impossible) and used a
@@ -193,18 +194,12 @@ def _ensure_production_supplier() -> None:
 
     now = utc_now()
     with db() as conn:
-        conn.execute("DELETE FROM products")
         # Migrate legacy rows that stored the phone with spaces before the
         # comparisons below run, or the supplier row would not match them.
         conn.execute(
             "UPDATE vendors SET phone = ?, whatsapp = ?, ecocash_number = ?, updated_at = ? "
             "WHERE phone = ?",
             (seed_phone, seed_phone, seed_phone, now, "+263 780747989"),
-        )
-        conn.execute(
-            "DELETE FROM vendors WHERE phone <> ? AND NOT EXISTS "
-            "(SELECT 1 FROM orders WHERE orders.vendor_id = vendors.id)",
-            (seed_phone,),
         )
         existing = conn.execute(
             "SELECT id, pin_hash FROM vendors WHERE phone = ?",
@@ -2032,34 +2027,67 @@ def upload_product_image(
         if not row or row["deleted_at"]:
             raise HTTPException(status_code=404, detail="Product not found.")
 
-    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-    if file.content_type not in allowed:
-        raise HTTPException(status_code=400, detail=f"Unsupported type: {file.content_type}")
-
     signatures = {
         "image/jpeg": (b"\xff\xd8\xff", "jpg"),
         "image/png": (b"\x89PNG\r\n\x1a\n", "png"),
         "image/webp": (b"RIFF", "webp"),
-        "image/gif": (b"GIF87a", "gif"),
+        "image/gif": (b"GIF", "gif"),
     }
+    if file.content_type not in signatures:
+        raise HTTPException(status_code=400, detail=f"Unsupported type: {file.content_type}")
+
     content = file.file.read(5 * 1024 * 1024 + 1)
     signature, ext = signatures[file.content_type]
-    if not content.startswith(signature):
-        raise HTTPException(status_code=400, detail="File content does not match its declared image type.")
-    filename = f"{product_id}_{uuid.uuid4().hex[:8]}.{ext}"
-    dest = UPLOAD_DIR / filename
     if len(content) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 5 MB).")
-    dest.write_bytes(content)
+    if not content.startswith(signature) or (
+        file.content_type == "image/webp" and content[8:12] != b"WEBP"
+    ) or (
+        file.content_type == "image/gif"
+        and not content.startswith((b"GIF87a", b"GIF89a"))
+    ):
+        raise HTTPException(status_code=400, detail="File content does not match its declared image type.")
 
-    asset_url = f"/uploads/{filename}"
+    asset_url = f"/api/products/{product_id}/image"
     now = utc_now()
     with db() as conn:
+        conn.execute(
+            """
+            INSERT INTO product_images (product_id, mime_type, image_data, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(product_id) DO UPDATE SET
+              mime_type = excluded.mime_type,
+              image_data = excluded.image_data,
+              updated_at = excluded.updated_at
+            """,
+            (product_id, file.content_type, base64.b64encode(content).decode("ascii"), now),
+        )
         conn.execute(
             "UPDATE products SET image_asset = ?, updated_at = ? WHERE id = ?",
             (asset_url, now, product_id),
         )
     return {"imageAsset": asset_url}
+
+
+@app.get("/api/products/{product_id}/image")
+def get_product_image(product_id: str):
+    with db() as conn:
+        row = conn.execute(
+            """
+            SELECT product_images.mime_type, product_images.image_data
+            FROM product_images
+            JOIN products ON products.id = product_images.product_id
+            WHERE product_images.product_id = ? AND products.deleted_at IS NULL
+            """,
+            (product_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Product image not found.")
+    return Response(
+        content=base64.b64decode(row["image_data"]),
+        media_type=row["mime_type"],
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @app.get("/uploads/{filename}")

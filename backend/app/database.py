@@ -161,6 +161,12 @@ CREATE TABLE IF NOT EXISTS products (
   updated_at TEXT NOT NULL,
   deleted_at TEXT
 );
+CREATE TABLE IF NOT EXISTS product_images (
+  product_id TEXT PRIMARY KEY REFERENCES products(id),
+  mime_type TEXT NOT NULL,
+  image_data TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY,
   user_id TEXT REFERENCES users(id),

@@ -126,6 +126,36 @@
     <p id="pin-hint" class="hint">The 4-digit PIN you registered with.</p>
     <button type="submit" class="btn-primary" style="width:100%">Sign in</button>
   </form>
+  <p style="text-align:center;margin-top:16px;margin-bottom:0">
+    New supplier?
+    <button type="button" class="btn-outline btn-sm" id="show-register">Create a vendor account</button>
+  </p>
+  <form id="register-form" class="hidden" novalidate>
+    <h2 style="font-size:18px;margin:20px 0 12px">Create your vendor account</h2>
+    <div id="register-error" class="error-msg hidden" role="alert"></div>
+    <label for="register-business">Business name</label>
+    <input type="text" id="register-business" maxlength="120" autocomplete="organization" required>
+    <label for="register-location">Location</label>
+    <input type="text" id="register-location" maxlength="120" placeholder="City or area" required>
+    <label for="register-description">About your business</label>
+    <textarea id="register-description" maxlength="500" placeholder="What you sell and where you deliver."></textarea>
+    <label for="register-phone">Phone number</label>
+    <input type="tel" id="register-phone" autocomplete="tel" placeholder="+263 77 000 0000" required>
+    <label for="register-ecocash">EcoCash number</label>
+    <input type="tel" id="register-ecocash" autocomplete="tel">
+    <label for="register-whatsapp">WhatsApp number</label>
+    <input type="tel" id="register-whatsapp" autocomplete="tel">
+    <label for="register-pin">Create a numeric PIN</label>
+    <input type="password" id="register-pin" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="64" required>
+    <p class="hint">Use 4 to 64 digits. You will use this PIN to sign in.</p>
+    <label for="register-pin-confirm">Confirm PIN</label>
+    <input type="password" id="register-pin-confirm" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="64" required>
+    <button type="submit" class="btn-primary" id="register-submit" style="width:100%">Create account</button>
+    <p style="text-align:center;margin-top:16px;margin-bottom:0">
+      Already registered?
+      <button type="button" class="btn-outline btn-sm" id="show-login">Sign in</button>
+    </p>
+  </form>
 </div>
 
 <!-- App -->
@@ -419,6 +449,66 @@ document.getElementById('login-form').addEventListener('submit', e => {
     return;
   }
   login(phone, pin);
+});
+
+document.getElementById('show-register').addEventListener('click', () => {
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('show-register').parentElement.classList.add('hidden');
+  document.getElementById('register-form').classList.remove('hidden');
+});
+
+document.getElementById('show-login').addEventListener('click', () => {
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('login-form').classList.remove('hidden');
+  document.getElementById('show-register').parentElement.classList.remove('hidden');
+});
+
+document.getElementById('register-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const errorEl = document.getElementById('register-error');
+  errorEl.classList.add('hidden');
+  const pin = document.getElementById('register-pin').value;
+  if (!/^\d{4,64}$/.test(pin)) {
+    errorEl.textContent = 'PIN must contain 4 to 64 digits.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (pin !== document.getElementById('register-pin-confirm').value) {
+    errorEl.textContent = 'The PINs do not match.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const submit = document.getElementById('register-submit');
+  submit.disabled = true;
+  try {
+    const response = await fetch(`${API}/api/vendors/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        businessName: document.getElementById('register-business').value.trim(),
+        location: document.getElementById('register-location').value.trim(),
+        description: document.getElementById('register-description').value.trim(),
+        phone: document.getElementById('register-phone').value.trim(),
+        ecocashNumber: document.getElementById('register-ecocash').value.trim(),
+        whatsapp: document.getElementById('register-whatsapp').value.trim(),
+        pin,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not create vendor account.');
+    }
+    token = data.token;
+    vendor = data.vendor;
+    localStorage.setItem('vendor_token', token);
+    enterApp();
+  } catch (err) {
+    errorEl.textContent = err.message || 'Could not create vendor account.';
+    errorEl.classList.remove('hidden');
+  } finally {
+    submit.disabled = false;
+  }
 });
 
 // ── Tabs ─────────────────────────────────────────────────────────────
