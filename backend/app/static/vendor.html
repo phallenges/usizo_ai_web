@@ -7,7 +7,7 @@
 <title>UsizoAI Supplier Portal</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #1a1a1a; line-height: 1.5; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f7f6; color: #1a1a1a; line-height: 1.5; }
   :root {
     --primary: #087f70; --primary-dark: #066357; --primary-soft: #e6f4f2;
     --danger: #dc2626; --danger-dark: #b91c1c; --success: #16a34a; --warning: #f59e0b;
@@ -20,10 +20,21 @@
   :is(a, button, input, select, textarea):focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
   .hidden { display: none !important; }
 
-  /* Login */
-  .login-screen { max-width: 400px; margin: 96px auto; padding: 40px; background: var(--bg); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-  .login-screen h1 { font-size: 24px; margin-bottom: 4px; }
-  .login-screen p { color: var(--ink-3); margin-bottom: 24px; font-size: 14px; }
+  /* Supplier entry */
+  .login-screen { width: min(100% - 32px, 440px); margin: max(48px, 12vh) auto; padding: 40px; background: var(--bg); border: 1px solid #e4ece9; border-radius: 16px; box-shadow: 0 16px 48px rgba(13,43,39,0.08); }
+  .entry-brand { display: flex; align-items: center; gap: 9px; margin-bottom: 34px; color: var(--primary-dark); font-size: 12px; font-weight: 700; letter-spacing: 1.2px; }
+  .entry-brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 9px; background: var(--primary-soft); color: var(--primary); font-size: 16px; }
+  .entry-intro h1 { max-width: 340px; margin-bottom: 10px; font-size: clamp(27px, 6vw, 34px); line-height: 1.16; letter-spacing: -1px; }
+  .entry-intro p { margin-bottom: 28px; color: var(--ink-3); font-size: 15px; }
+  .entry-primary { display: flex; width: 100%; min-height: 54px; align-items: center; justify-content: space-between; padding: 0 18px; border-radius: 9px; background: var(--primary); color: white; font-size: 15px; font-weight: 600; transition: background 140ms ease, transform 140ms ease, box-shadow 140ms ease; }
+  .entry-primary:hover { background: var(--primary-dark); box-shadow: 0 6px 16px rgba(8,127,112,0.2); transform: translateY(-1px); }
+  .entry-primary span { font-size: 20px; font-weight: 400; }
+  .entry-signin { margin: 18px 0 0; color: var(--ink-3); font-size: 13px; text-align: center; }
+  .entry-link { min-height: auto; padding: 2px 4px; background: none; color: var(--primary-dark); font-size: inherit; font-weight: 600; }
+  .entry-link:hover { text-decoration: underline; }
+  .entry-form-heading { margin: 0 0 20px; font-size: 23px; letter-spacing: -0.5px; }
+  .login-screen > form > .entry-link { margin-top: 14px; }
+  @media (max-width: 480px) { .login-screen { margin: 32px auto; padding: 28px 24px; } .entry-brand { margin-bottom: 28px; } }
   label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--ink-2); }
   input, select, textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; margin-bottom: 16px; font-family: inherit; background: var(--bg); color: inherit; }
   textarea { resize: vertical; min-height: 72px; }
@@ -115,23 +126,26 @@
 
 <!-- Login -->
 <div id="login" class="login-screen">
-  <h1>UsizoAI Suppliers</h1>
-  <p>Manage products, orders, and EcoCash payments.</p>
+  <div class="entry-brand"><span class="entry-brand-mark" aria-hidden="true">U</span><span>USIZOAI ? SUPPLIER PORTAL</span></div>
+  <section id="entry-intro" class="entry-intro">
+    <h1>Bring your products to more people.</h1>
+    <p>Set up your supplier profile and start sharing your products with the UsizoAI community.</p>
+    <button type="button" class="entry-primary" id="show-register"><span>Create a vendor account</span><span aria-hidden="true">?</span></button>
+    <p class="entry-signin">Already a supplier? <button type="button" class="entry-link" id="show-login">Sign in</button></p>
+  </section>
   <div id="login-error" class="error-msg hidden" role="alert"></div>
-  <form id="login-form" novalidate>
+  <form id="login-form" class="hidden" novalidate>
+    <h2 class="entry-form-heading">Welcome back</h2>
     <label for="phone-input">Phone number</label>
     <input type="tel" id="phone-input" name="phone" placeholder="+263 77 000 0000" autocomplete="tel" required>
     <label for="pin-input">PIN</label>
     <input type="password" id="pin-input" name="pin" inputmode="numeric" autocomplete="current-password" required aria-describedby="pin-hint">
     <p id="pin-hint" class="hint">The 4-digit PIN you registered with.</p>
     <button type="submit" class="btn-primary" style="width:100%">Sign in</button>
+    <button type="button" class="entry-link" id="show-register-from-login">Create a vendor account</button>
   </form>
-  <p style="text-align:center;margin-top:16px;margin-bottom:0">
-    New supplier?
-    <button type="button" class="btn-outline btn-sm" id="show-register">Create a vendor account</button>
-  </p>
   <form id="register-form" class="hidden" novalidate>
-    <h2 style="font-size:18px;margin:20px 0 12px">Create your vendor account</h2>
+    <h2 class="entry-form-heading">Create your vendor account</h2>
     <div id="register-error" class="error-msg hidden" role="alert"></div>
     <label for="register-business">Business name</label>
     <input type="text" id="register-business" maxlength="120" autocomplete="organization" required>
@@ -151,10 +165,7 @@
     <label for="register-pin-confirm">Confirm PIN</label>
     <input type="password" id="register-pin-confirm" inputmode="numeric" autocomplete="new-password" minlength="4" maxlength="64" required>
     <button type="submit" class="btn-primary" id="register-submit" style="width:100%">Create account</button>
-    <p style="text-align:center;margin-top:16px;margin-bottom:0">
-      Already registered?
-      <button type="button" class="btn-outline btn-sm" id="show-login">Sign in</button>
-    </p>
+    <button type="button" class="entry-link" id="show-login-from-register">Already registered? Sign in</button>
   </form>
 </div>
 
@@ -452,16 +463,23 @@ document.getElementById('login-form').addEventListener('submit', e => {
 });
 
 document.getElementById('show-register').addEventListener('click', () => {
+  document.getElementById('entry-intro').classList.add('hidden');
   document.getElementById('login-form').classList.add('hidden');
-  document.getElementById('show-register').parentElement.classList.add('hidden');
   document.getElementById('register-form').classList.remove('hidden');
 });
 
-document.getElementById('show-login').addEventListener('click', () => {
+document.getElementById('show-login').addEventListener('click', showLoginForm);
+document.getElementById('show-login-from-register').addEventListener('click', showLoginForm);
+document.getElementById('show-register-from-login').addEventListener('click', () => {
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('register-form').classList.remove('hidden');
+});
+
+function showLoginForm() {
+  document.getElementById('entry-intro').classList.add('hidden');
   document.getElementById('register-form').classList.add('hidden');
   document.getElementById('login-form').classList.remove('hidden');
-  document.getElementById('show-register').parentElement.classList.remove('hidden');
-});
+}
 
 document.getElementById('register-form').addEventListener('submit', async e => {
   e.preventDefault();
